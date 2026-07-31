@@ -1,0 +1,8 @@
+/target
+
+# Local config with real secrets - copy from config/default.yaml
+/config/config.yaml
+
+# Telemetry output
+*.log
+metrics.json
