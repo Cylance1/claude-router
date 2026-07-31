@@ -58,13 +58,38 @@ cargo build --release
 
 ## Configuration
 
-Create a `config.yaml` file based on the example in the `config` directory.
+Copy the template and fill in your own values:
+
+```bash
+cp config/default.yaml config/config.yaml
+```
+
+`config/config.yaml` is gitignored, so real secrets never get committed — `config/default.yaml`
+stays in the repo as the tracked template.
+
+Alternatively (or in addition), set the `OPENROUTER_API_KEY` environment variable — it always
+overrides whatever key is in the config file, so you never need to put a real key in a file at all:
+
+```bash
+export OPENROUTER_API_KEY="sk-or-v1-..."
+```
+
+Routing is rule-based: each entry in `routing.rules` maps a regex `pattern` matched against the
+incoming request to a `role`, and each `role` maps to a concrete OpenRouter model. Requests that
+match no rule fall back to `default_role`.
 
 ## Usage
 
 ```bash
 cargo run
 ```
+
+By default the server listens on `127.0.0.1:3000` (configurable via `server.host` / `server.port`).
+
+### Endpoints
+
+- `POST /v1/messages` — Anthropic-compatible messages endpoint used by Claude Code
+- `GET /health` — health check
 
 ## License
 
