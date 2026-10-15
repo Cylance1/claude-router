@@ -6,3 +6,10 @@
 # Telemetry output
 *.log
 metrics.json
+
+# python
+__pycache__/
+*.pyc
+.pytest_cache/
+vwap_bot/data/
+vwap_bot/KILL
