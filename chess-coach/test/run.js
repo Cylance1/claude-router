@@ -68,3 +68,4 @@ test('puzzle checking with the real engine: correct, alternative and wrong answe
     assert.match(ex.sections.why, /back-rank/i);
   } finally { pool.close(); }
 });
+require('./loose.js');

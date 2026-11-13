@@ -106,7 +106,7 @@ function renderMenu() {
       <div class="opens"><button class="primary" id="m-ow">As White (${count(FILTERS.openW)})</button><button class="primary" id="m-ob">As Black (${count(FILTERS.openB)})</button><button id="m-later">Middlegame mistakes (${count(FILTERS.later)})</button></div></div>
     <div class="card"><h3>Train your instinct</h3>
       <p class="muted small" style="margin-bottom:8px">Your fast moves are not your problem: in balanced middlegames you blunder about as often at 3 seconds as at 15. The goal is a safety scan that runs on its own, so the fast move is also the safe one.</p>
-      <div class="row"><button class="primary" id="m-scan">Safety scan: what's loose?</button><span class="small muted">Puzzle timer</span>
+      <div class="row"><button class="primary" id="m-scan">Safety scan</button><span class="small muted">Scan finds</span><span class="seg" id="smode">${[['undefended', 'Undefended'], ['hanging', 'Winnable']].map(([v, l]) => `<button data-s="${v}" class="${scanMode() === v ? 'on' : ''}">${l}</button>`).join('')}</span><span class="small muted">Puzzle timer</span>
       <span class="seg" id="seg">${[[0, 'Off'], [10, '10 s'], [5, '5 s']].map(([v, l]) => `<button data-t="${v}" class="${(mem.timer || 0) === v ? 'on' : ''}">${l}</button>`).join('')}</span></div></div>
     <div class="modes">
       <button class="mode" data-m="mine"><b>Your own mistakes</b><span>${count(FILTERS.mine)} positions from your games</span></button>
@@ -122,6 +122,7 @@ function renderMenu() {
   $('m-scan').onclick = startScan;
   $('m-ow').onclick = () => start('openW', 'Your openings as White'); $('m-ob').onclick = () => start('openB', 'Your openings as Black'); $('m-later').onclick = () => start('later', 'Your middlegame mistakes');
   bindGoal(renderMenu);
+  $('smode').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; mem.scanMode = b.dataset.s; save(); renderMenu(); };
   $('seg').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; mem.timer = +b.dataset.t; save(); renderMenu(); };
   document.querySelectorAll('.mode').forEach((b) => { b.onclick = () => start(b.dataset.m, b.querySelector('b').textContent.replace('&amp;', '&')); });
 }
@@ -240,74 +241,80 @@ function finish() {
 }
 
 
-// ---- safety scan: which pieces are loose? (instinct trainer, answers computed in the browser) ----
-const VALUE = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 100 };
-const NAME = { n: 'knight', b: 'bishop', r: 'rook', q: 'queen' };
-function looseIn(fen) {
-  const c = new Chess(fen); const out = [];
-  for (const row of c.board()) for (const pc of row) {
-    if (!pc || !NAME[pc.type]) continue;
-    const opp = pc.color === 'w' ? 'b' : 'w';
-    const att = c.attackers(pc.square, opp); if (!att.length) continue;
-    const def = c.attackers(pc.square, pc.color).length;
-    const cheapest = Math.min(...att.map((a) => VALUE[c.get(a).type]));
-    if (def === 0 || cheapest < VALUE[pc.type]) out.push({ sq: pc.square, color: pc.color, type: pc.type, att: att.map((a) => `${NAME[c.get(a).type] || c.get(a).type === 'p' && 'pawn' || c.get(a).type === 'k' && 'king'} on ${a}`), def });
+// ---- safety scan: instinct trainer. Answers come from public/js/loose.js, which only counts REAL recaptures ----
+const LOOSE = makeLoose(Chess);
+const TAP = ['n', 'b', 'r', 'q']; const PNAME = { n: 'knight', b: 'bishop', r: 'rook', q: 'queen' };
+const scanMode = () => (mem.scanMode === 'hanging' ? 'hanging' : 'undefended');
+const truthOf = (r) => r.pieces.filter((x) => (scanMode() === 'hanging' ? x.hanging : x.undefended));
+let scanQueue = [];
+function nextScanRound(wantNone) {
+  const seen = new Set(); const max = scanMode() === 'hanging' ? 3 : 5;
+  if (!scanQueue.length) scanQueue = PUZ.map((p) => ({ p, k: Math.random() + (p.mine ? 0.4 : 0) })).sort((a, b) => b.k - a.k).map((x) => x.p);
+  for (let tries = 0; tries < 80 && scanQueue.length; tries++) {
+    const p = scanQueue.shift(); const key = p.fen.split(' ')[0]; if (seen.has(key)) continue; seen.add(key);
+    let pieces; try { pieces = LOOSE.analyze(p.fen); } catch (e) { continue; }
+    const r = { fen: p.fen, side: p.side, pieces }; const n = truthOf(r).length;
+    if (wantNone ? n === 0 : n >= 1 && n <= max) return r;
   }
-  return out;
+  return null;
 }
-let scanPool = null;
-function scanRounds(n = 8) {
-  if (!scanPool) {
-    const seen = new Set(); scanPool = { yes: [], no: [] };
-    PUZ.forEach((p) => { const k = p.fen.split(' ')[0]; if (seen.has(k)) return; seen.add(k); const l = looseIn(p.fen); if (l.length >= 1 && l.length <= 3) scanPool.yes.push({ fen: p.fen, side: p.side, loose: l, mine: p.mine }); else if (!l.length) scanPool.no.push({ fen: p.fen, side: p.side, loose: [], mine: p.mine }); });
-  }
-  const shuffle = (a) => a.map((x) => [Math.random() + (x.mine ? 0.4 : 0), x]).sort((x, y) => y[0] - x[0]).map((x) => x[1]);
-  const yes = shuffle(scanPool.yes).slice(0, Math.round(n * 0.75)); const no = shuffle(scanPool.no).slice(0, n - yes.length);
-  return shuffle([...yes, ...no]).sort(() => Math.random() - 0.5);
-}
-function startScan() { S = { scan: true, active: true, rounds: scanRounds(8), i: 0, score: [], label: 'Safety scan' }; renderScan(); scanRound(); }
+function startScan() { S = { scan: true, active: true, rounds: [], total: 8, i: 0, score: [], label: 'Safety scan' }; renderScan(); scanRound(); }
 function renderScan() {
   view().innerHTML = `<div class="split"><div><div id="pb"></div></div><div><div class="row" style="justify-content:space-between"><h2 style="margin:0">Safety scan</h2><button class="ghost small" id="quit">End</button></div>
     <div class="dots" id="dots"></div><div id="info"></div><div id="feed"></div><div class="tools" id="btns"></div></div></div>`;
   board = new Board($('pb'), {});
   $('quit').onclick = scanSummary; dotsScan();
 }
-function dotsScan() { $('dots').innerHTML = S.rounds.map((r, i) => `<i class="${S.score[i] === undefined ? '' : S.score[i] ? 'ok' : 'no'} ${i === S.i ? 'cur' : ''}"></i>`).join(''); }
+function dotsScan() { $('dots').innerHTML = Array.from({ length: S.total }, (_, i) => `<i class="${S.score[i] === undefined ? '' : S.score[i] ? 'ok' : 'no'} ${i === S.i ? 'cur' : ''}"></i>`).join(''); }
 function scanRound() {
-  const r = S.rounds[S.i]; if (!r) return scanSummary();
+  if (S.i >= S.total) return scanSummary();
+  const r = S.rounds[S.i] || (S.rounds[S.i] = nextScanRound(Math.random() < 0.25) || nextScanRound(false));
+  if (!r) return scanSummary();
   S.cur = { r, picks: new Set(), t0: Date.now(), done: false }; dotsScan(); stopTimer();
-  board.load(r.fen); board.flip(r.side); board.interactive = true; board.locked = false; board.setMarks({});
+  board.load(r.fen); board.flip(r.side); board.interactive = true; board.locked = false; board.setMarks({}); board.setArrows([]);
   board.onSquare = (sq) => {
     if (S.cur.done) return; const pc = board.chess.get(sq);
-    if (!pc || !NAME[pc.type]) return; // only knights, bishops, rooks and queens count
+    if (!pc || !TAP.includes(pc.type)) return; // only knights, bishops, rooks and queens count
     if (S.cur.picks.has(sq)) S.cur.picks.delete(sq); else S.cur.picks.add(sq);
     board.setMarks(Object.fromEntries([...S.cur.picks].map((q) => [q, 'sel'])));
   };
   const total = 10000;
-  $('info').innerHTML = `<div class="msg"><b>${sideName(r.side)} to move.</b> Tap every knight, bishop, rook or queen that is <b>loose</b>: attacked, and either not defended or attacked by something cheaper. Either colour. Nothing loose? Press <b>Nothing loose</b>.<div class="timer" id="tm"><i id="tmi"></i></div></div>`;
-  $('feed').innerHTML = ''; $('btns').innerHTML = '<button class="primary" id="done">Done</button><button id="none">Nothing loose</button>';
+  const rule = scanMode() === 'hanging'
+    ? 'Tap every knight, bishop, rook or queen that <b>can be won right now</b>: it is attacked and taking it nets material (not defended, or taken by a cheaper piece, or not defended enough).'
+    : 'Tap every knight, bishop, rook or queen that <b>nothing defends</b>. A piece only defends if it could really recapture: a pinned piece does not, and neither does a king that would step into check.';
+  $('info').innerHTML = `<div class="msg"><b>${sideName(r.side)} to move.</b> ${rule} Either colour. Nothing? Press <b>None</b>.<div class="timer" id="tm"><i id="tmi"></i></div></div>`;
+  $('feed').innerHTML = ''; $('btns').innerHTML = '<button class="primary" id="done">Done</button><button id="none">None</button>';
   $('done').onclick = scanCheck; $('none').onclick = () => { S.cur.picks.clear(); scanCheck(); };
   tick = setInterval(() => { const left = total - (Date.now() - S.cur.t0); const bar = $('tmi'); if (!bar) return stopTimer(); bar.style.width = Math.max(0, left / total * 100) + '%'; $('tm').classList.toggle('low', left < 3000); if (left <= 0) scanCheck(); }, 100);
 }
 function scanCheck() {
   const c = S.cur; if (c.done) return; c.done = true; stopTimer(); board.onSquare = null; board.interactive = false;
-  const ms = Date.now() - c.t0; const truth = new Set(c.r.loose.map((l) => l.sq));
+  const ms = Date.now() - c.t0; const by = Object.fromEntries(c.r.pieces.map((x) => [x.square, x]));
+  const truth = new Set(truthOf(c.r).map((x) => x.square));
   const hits = [...c.picks].filter((q) => truth.has(q)); const falses = [...c.picks].filter((q) => !truth.has(q)); const missed = [...truth].filter((q) => !c.picks.has(q));
   const perfect = !falses.length && !missed.length; S.score[S.i] = perfect; dotsScan();
   mem.scan.rounds++; mem.scan.hits += hits.length; mem.scan.missed += missed.length; mem.scan.falses += falses.length; mem.scan.ms += ms; save();
   const marks = {}; hits.forEach((q) => { marks[q] = 'good'; }); falses.forEach((q) => { marks[q] = 'bad'; }); missed.forEach((q) => { marks[q] = 'hl'; }); board.setMarks(marks);
-  const why = (l) => `${l.color === 'w' ? 'White' : 'Black'} ${NAME[l.type]} on ${l.sq}: attacked by ${l.att.join(', ')}; ${l.def ? `defended ${l.def} time${l.def > 1 ? 's' : ''}, but the attacker is worth less` : 'not defended'}.`;
-  $('feed').innerHTML = `<div class="msg ${perfect ? 'ok' : 'no'}"><b>${perfect ? (truth.size ? 'Spotted them all' : 'Right, nothing was loose') : 'Not quite'}</b> in ${(ms / 1000).toFixed(1)} s.
-    ${c.r.loose.length ? c.r.loose.map((l) => `<div class="small">${esc(why(l))}</div>`).join('') : '<div class="small">Every attacked piece was defended well enough.</div>'}
-    <div class="legend" style="margin-top:6px"><span><b style="background:rgba(59,143,90,.7)"></b>found</span><span><b style="background:rgba(200,55,45,.7)"></b>not loose</span><span><b style="background:rgba(59,115,185,.7)"></b>missed</span></div></div>`;
-  $('btns').innerHTML = `<button class="primary" id="next">${S.i + 1 >= S.rounds.length ? 'Finish' : 'Next position'}</button>`;
-  $('next').onclick = () => { S.i++; if (S.i >= S.rounds.length) scanSummary(); else scanRound(); };
+  // arrows: green = who defends a piece you tapped wrongly; red = what attacks a piece you missed
+  const arrows = [];
+  falses.forEach((q) => by[q].defenders.forEach((d) => arrows.push({ from: d.square, to: q, cls: 'good' })));
+  falses.forEach((q) => { if (scanMode() === 'hanging') by[q].attackers.forEach((a) => arrows.push({ from: a.square, to: q, cls: 'bad' })); });
+  missed.forEach((q) => by[q].attackers.forEach((a) => arrows.push({ from: a.square, to: q, cls: 'bad' })));
+  board.setArrows(arrows.slice(0, 10));
+  const section = (title, list) => (list.length ? `<div class="small" style="margin-top:6px"><b>${title}</b></div>${list.map((q) => `<div class="small">${esc(LOOSE.explain(by[q]))}</div>`).join('')}` : '');
+  const what = scanMode() === 'hanging' ? 'winnable' : 'undefended';
+  $('feed').innerHTML = `<div class="msg ${perfect ? 'ok' : 'no'}"><b>${perfect ? (truth.size ? 'Spotted them all' : `Right, nothing was ${what}`) : 'Not quite'}</b> in ${(ms / 1000).toFixed(1)} s.
+    ${section('Found', hits)}${section(`You tapped these, but they are not ${what}`, falses)}${section('Missed', missed)}
+    ${!truth.size && !c.picks.size ? '<div class="small">Nothing here qualified.</div>' : ''}
+    <div class="legend" style="margin-top:8px"><span><b style="background:rgba(59,143,90,.7)"></b>found</span><span><b style="background:rgba(200,55,45,.7)"></b>not ${what}</span><span><b style="background:rgba(59,115,185,.7)"></b>missed</span><span>green arrow: defender · red arrow: attacker</span></div></div>`;
+  $('btns').innerHTML = `<button class="primary" id="next">${S.i + 1 >= S.total ? 'Finish' : 'Next position'}</button>`;
+  $('next').onclick = () => { S.i++; if (S.i >= S.total) scanSummary(); else scanRound(); };
 }
 function scanSummary() {
   stopTimer(); if (board) board.onSquare = null;
   const done = S.score.filter((x) => x !== undefined); const ok = done.filter(Boolean).length; S = null;
   view().innerHTML = `<div class="card"><h2>Scan complete</h2><div class="stats" style="margin-bottom:10px"><div class="stat"><b>${ok}/${done.length}</b><span>positions read perfectly</span></div></div>
-    <p class="muted">The aim is to see the loose pieces before you can explain how. Keep the 10 second limit and do a few rounds a day; once it feels automatic, try to take it down.</p>
+    <p class="muted">The aim is to see the answer before you can explain it. Keep the 10 second limit and do a few rounds a day; once it feels automatic, try the other mode.</p>
     <div class="row"><button class="primary" id="again">Another round</button><button id="menu">Back to menu</button></div></div>`;
   $('again').onclick = startScan; $('menu').onclick = renderMenu;
 }
@@ -358,4 +365,4 @@ function renderProgress() {
 
 function afterProgress() { bindGoal(renderProgress); }
 show('drill');
-window.__drill = { get session() { return S; } }; // debugging hook
+window.__drill = { get session() { return S; }, loose: LOOSE }; // debugging hook

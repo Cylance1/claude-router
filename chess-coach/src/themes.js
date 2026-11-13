@@ -2,6 +2,8 @@
 // Heuristic tactic detection on engine lines. Given a position and the engine's best line for the
 // side to move, name the idea ("fork", "pin", "back-rank mate"...) so we can teach it and group puzzles.
 const { Chess } = require('chess.js');
+const { makeLoose } = require('../public/js/loose.js');
+const LOOSE = makeLoose(Chess);
 
 const VAL = { p: 1, n: 3, b: 3, r: 5, q: 9, k: 100 };
 const NAMES = { p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' };
@@ -97,7 +99,7 @@ function analyzeLine(fen, pv, mateScore) {
 
     // ---- first move only: what idea does it create? ----
     if (mv.captured && VAL[mv.captured] >= 3) {
-      const defended = before.attackers(mv.to, them).length > 0;
+      const defended = LOOSE.defenders(before, mv.to).list.length > 0; // real recaptures only (pins, king safety)
       if (!defended) { themes.add('hangingPiece'); detail.hangingPiece = { piece: NAMES[mv.captured], square: mv.to, by: NAMES[mv.piece] }; }
     }
     // fork: the moved piece attacks 2+ valuable or undefended things

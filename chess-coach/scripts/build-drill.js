@@ -5,7 +5,7 @@ const root = path.join(__dirname, '..');
 const rd = (f) => fs.readFileSync(path.join(root, f), 'utf8');
 const strip = (s) => s.replace(/^import .*$/gm, '').replace(/^export \{[^}]*\};?$/gm, '').replace(/^export (class|function|const) /gm, '$1 ').replace(/\/\/# sourceMappingURL=.*$/m, '');
 const chess = strip(rd('node_modules/chess.js/dist/esm/chess.js'));
-const code = `const { Chess } = (() => {\n${chess}\nreturn { Chess };\n})();\n${strip(rd('public/js/pieces.js'))}\n${strip(rd('public/js/board.js'))}\n${rd('drill/drill.js')}`;
+const code = `const { Chess } = (() => {\n${chess}\nreturn { Chess };\n})();\n${strip(rd('public/js/pieces.js'))}\n${strip(rd('public/js/board.js'))}\n${rd('public/js/loose.js')}\n${rd('drill/drill.js')}`;
 const data = JSON.stringify(JSON.parse(rd('drill/data.json'))).replace(/</g, '\\u003c');
 const html = `<title>Chess Coach Drills</title>
 <meta name="claude:viewport-fit-sides" content="cover">
