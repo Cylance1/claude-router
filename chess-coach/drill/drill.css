@@ -194,6 +194,8 @@ body { margin: 0; overscroll-behavior: none; }
 .actions { min-height: 46px; } .actions button { min-height: 44px; }
 .stage { padding-top: 6px; padding-bottom: 8px; }
 .panel.hasfb #info .why { display: none; }
+.panel.tighter #info { display: none; }
+.panel.tighter .msg { padding: 5px 8px; margin-top: 3px; } .panel.tighter .msg .sec { margin-top: 2px; }
 /* short phones (about 640px tall and under): tighter rows */
 @media (max-height: 700px) {
   .wrow { padding: 5px 8px 5px 10px; } .wrow button { min-height: 36px; }

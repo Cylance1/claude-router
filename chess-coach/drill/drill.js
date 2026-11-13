@@ -215,13 +215,15 @@ function summaryScreen(title, big, bigLabel, lines, note, againLabel, againFn) {
 function fitPanel() {
   const p = document.querySelector('.panel'); const st = view(); const feed = $('feed');
   if (!p || !feed) return;
-  st.classList.remove('fb'); p.classList.remove('tight'); p.style.removeProperty('--pfs');
+  st.classList.remove('fb'); p.classList.remove('tight', 'tighter'); p.style.removeProperty('--pfs');
   p.classList.toggle('hasfb', feed.children.length > 0); // once you have an answer, the question text above it is not needed
   if (!feed.children.length) return;
   const over = () => p.scrollHeight > p.clientHeight + 1;
   const shrink = (min) => { let fs = 14; while (over() && fs > min) { fs -= 0.5; p.style.setProperty('--pfs', fs + 'px'); } return !over(); };
   if (shrink(11)) return;
-  p.classList.add('tight'); // last resort: drop the secondary lines. The board always stays full width.
+  p.classList.add('tight'); // drop the secondary lines. The board always stays full width.
+  if (!over()) return;
+  p.classList.add('tighter'); shrink(10.5); // last resort on the smallest phones: hide the question line and trim padding
 }
 function watchPanel() {
   const obs = new MutationObserver(() => fitPanel());
