@@ -187,6 +187,13 @@ body { margin: 0; overscroll-behavior: none; }
 .stage > :not(.boardbox) { margin-left: max(14px, env(safe-area-inset-left, 0px)); margin-right: max(14px, env(safe-area-inset-right, 0px)); }
 .stage > .boardbox, .stage.fb > .boardbox { width: min(100cqw, calc(100cqh - 135px)); max-width: 100%; margin: 0 auto; }
 .boardbox .board { border-radius: 0; box-shadow: none; }
+/* slimmer bars so the board can stay full width and the text still fits */
+.app > header.edge.top.sess { padding-top: 4px; padding-bottom: 4px; }
+.sess .sessbar { min-height: 38px; } .sess .iconbtn { width: 38px; height: 38px; min-height: 38px; }
+.app > footer.edge.bottom { padding-top: 5px; padding-bottom: 6px; }
+.actions { min-height: 46px; } .actions button { min-height: 44px; }
+.stage { padding-top: 6px; padding-bottom: 8px; }
+.panel.hasfb #info .why { display: none; }
 /* short phones (about 640px tall and under): tighter rows */
 @media (max-height: 700px) {
   .wrow { padding: 5px 8px 5px 10px; } .wrow button { min-height: 36px; }

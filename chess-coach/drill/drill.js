@@ -92,6 +92,7 @@ function setNav() {
 }
 function setTopBrand() {
   const g = ratingInfo(); const pct = Math.max(1.5, Math.min(100, (g.cur / g.target) * 100));
+  $('top').classList.remove('sess');
   $('top').innerHTML = `<div class="brandrow"><div class="brand">Chess Coach</div><button class="ratingchip" id="ratingchip" aria-label="Rating ${g.cur}, goal ${g.target}. Open progress"><b>${g.cur}</b><span>→ ${g.target}</span></button></div>
     <div class="topbar" role="progressbar" aria-valuemin="0" aria-valuemax="${g.target}" aria-valuenow="${g.cur}" aria-label="Rating progress"><i style="width:${pct}%"></i></div>`;
   $('ratingchip').onclick = () => { mem.progressPage = 'goal'; save(); show('progress'); };
@@ -194,6 +195,7 @@ function start(modeKey, label) {
 }
 // shared layout for every drill: top bar = End / progress dots / flip, stage = board + short messages, bottom bar = the action buttons
 function sessionShell(title, onQuit, boardOpts) {
+  $('top').classList.add('sess');
   $('top').innerHTML = `<div class="sessbar"><button class="iconbtn" id="quit" aria-label="End this drill">✕</button><div class="sesstitle">${esc(title)}</div><div class="dots" id="dots"></div><button class="iconbtn" id="flip" aria-label="Flip the board">⇅</button></div>`;
   view().innerHTML = '<div class="boardbox"><div id="pb"></div></div><div class="panel"><div id="info"></div><div id="feed"></div></div>';
   $('bottom').innerHTML = '<div class="actions" id="btns"></div>';
@@ -214,6 +216,7 @@ function fitPanel() {
   const p = document.querySelector('.panel'); const st = view(); const feed = $('feed');
   if (!p || !feed) return;
   st.classList.remove('fb'); p.classList.remove('tight'); p.style.removeProperty('--pfs');
+  p.classList.toggle('hasfb', feed.children.length > 0); // once you have an answer, the question text above it is not needed
   if (!feed.children.length) return;
   const over = () => p.scrollHeight > p.clientHeight + 1;
   const shrink = (min) => { let fs = 14; while (over() && fs > min) { fs -= 0.5; p.style.setProperty('--pfs', fs + 'px'); } return !over(); };
