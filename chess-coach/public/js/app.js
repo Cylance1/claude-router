@@ -29,6 +29,8 @@ async function runJob(jobId, onProgress) {
 const progressBar = (id) => `<div class="progress"><i id="${id}"></i></div>`;
 const setBar = (id, p) => { const b = el(id); if (b) b.style.width = Math.round(p * 100) + '%'; };
 
+// Only the most recent navigation may draw: an older, slower request must never overwrite a newer screen.
+let navSeq = 0;
 const S = { user: store.get('cc_user') || '', profile: null, games: [], cfg: {}, analysis: null, ply: 0, tab: 'games' };
 const winPct = (cp) => 50 + 50 * (2 / (1 + Math.exp(-0.00368208 * cp)) - 1);
 const THEME = () => S.cfg.themes || {};
@@ -288,8 +290,11 @@ let tb = null; let T = null;
 async function renderTrainMenu() {
   const box = el('tab-train');
   if (T && T.active) { renderPuzzleUI(); return; }
+  const my = ++navSeq;
   const stats = (await api('/api/config')).library; S.cfg.library = stats;
+  if (my !== navSeq) return;
   let prof = null; if (S.user) prof = await api('/api/profile?user=' + encodeURIComponent(S.user)).catch(() => null);
+  if (my !== navSeq || (T && T.active)) return; // a session started while this menu was loading
   const weak = prof && prof.weaknesses.slice(0, 3);
   const themes = Object.entries(THEME()).filter(([t]) => (stats.byTheme[t] || 0) > 0);
   box.innerHTML = `<h2>Train</h2>
@@ -314,9 +319,11 @@ async function renderTrainMenu() {
   };
 }
 async function startSession(qs, label) {
+  const my = ++navSeq;
   const box = el('tab-train');
   box.innerHTML = '<div class="card"><span class="spin"></span> Choosing puzzles for you…</div>';
   const r = await api(`/api/puzzles?count=10&user=${encodeURIComponent(S.user || 'guest')}&${qs}`);
+  if (my !== navSeq) return;
   if (!r.puzzles.length) { box.innerHTML = `<div class="card"><h3>No puzzles yet for that</h3><p class="muted">${qs.includes('mine') ? 'Review some of your games first — your own mistakes become puzzles automatically.' : 'Try “Find more like this”.'}</p><button id="tback">Back</button></div>`; el('tback').onclick = renderTrainMenu; T = null; return; }
   T = { active: true, label, list: r.puzzles, i: 0, results: [], focus: r.themes };
   renderPuzzleUI();
@@ -430,14 +437,18 @@ function finishSession() {
 // ---------- LESSONS ----------
 async function renderLessons() {
   const box = el('tab-lessons');
+  const my = ++navSeq;
   const list = await api('/api/lessons');
+  if (my !== navSeq) return;
   box.innerHTML = `<h2>Lessons</h2><p class="muted">Short, practical lessons on the ideas that decide club games. Each has real examples from played games.</p>
     <div class="grid2">${list.map((l) => `<button class="card lesson" data-t="${l.theme}"><h3>${esc(l.title)}</h3><span class="muted small">${esc(l.summary.slice(0, 120))}…</span><br><span class="tag">${l.puzzles} ${l.puzzles === 1 ? 'puzzle' : 'puzzles'}</span></button>`).join('')}</div>`;
   box.onclick = (e) => { const b = e.target.closest('button[data-t]'); if (b) openLesson(b.dataset.t); };
 }
 async function openLesson(theme) {
   const box = el('tab-lessons');
+  const my = ++navSeq;
   const l = await api('/api/lessons/' + theme);
+  if (my !== navSeq) return;
   box.innerHTML = `<button class="ghost" id="lback">← All lessons</button><h2>${esc(l.title)}</h2><p>${esc(l.summary)}</p>
     <div class="card"><h3>How to spot it</h3><ul class="spot">${l.spot.map((s) => `<li>${esc(s)}</li>`).join('')}</ul><p><b>Habit:</b> ${esc(l.habit)}</p><p><b>Takeaway:</b> ${esc(l.takeaway)}</p></div>
     <div class="row" style="margin:1rem 0"><button class="primary" id="lpractice">Practice ${esc(l.title)} puzzles</button></div>
