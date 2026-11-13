@@ -48,6 +48,16 @@ function choose(filter, n = 10) {
   return PUZ.filter(filter).map((p) => [score(p), p]).sort((a, b) => b[0] - a[0]).slice(0, n).map((x) => x[1]);
 }
 
+// ---- pieces: chess.com's set when embedded, otherwise (or on request) the original drawings ----
+function applyPieces() {
+  const neo = window.PIECE_IMGS_NEO; const on = !!neo && mem.pieces !== 'original';
+  window.PIECE_IMGS = on ? neo : null;
+  const b = $('pset'); if (!neo) { b.hidden = true; return; }
+  b.textContent = on ? 'Pieces: chess.com' : 'Pieces: original';
+}
+$('pset').onclick = () => { mem.pieces = mem.pieces === 'original' ? 'chesscom' : 'original'; save(); applyPieces(); if (board) board.render(); show(tab); };
+applyPieces();
+
 // ---- tabs ----
 let board = null; let S = null; let tab = 'drill';
 document.querySelectorAll('nav button').forEach((b) => { b.onclick = () => show(b.dataset.tab); });

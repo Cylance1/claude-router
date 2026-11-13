@@ -10,5 +10,7 @@ const P = {
 
 /** Returns an <svg> string for a piece ('w' | 'b', 'pnbrqk'). */
 export function pieceSvg(color, type, cls = '') {
+  const imgs = typeof window !== 'undefined' && window.PIECE_IMGS; // optional {wp: url, bn: url, ...}
+  if (imgs && imgs[color + type]) return `<img class="piece ${color} ${cls}" src="${imgs[color + type]}" alt="${color === 'w' ? 'white' : 'black'} ${type}" draggable="false">`;
   return `<svg class="piece ${color} ${cls}" viewBox="3 2.5 39 39" aria-label="${color === 'w' ? 'white' : 'black'} ${type}"><g stroke-linejoin="round" stroke-linecap="round" stroke-width="1.6">${P[type]}</g></svg>`;
 }

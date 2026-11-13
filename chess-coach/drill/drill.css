@@ -89,3 +89,5 @@ table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nu
 .goal .nums { display: flex; gap: 6px 18px; flex-wrap: wrap; } .goal .nums b { font-family: var(--head); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
 .spark { width: 100%; height: 56px; display: block; } .goal input { width: 96px; padding: .4em .6em; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; min-height: 36px; }
 .opens { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+
+img.piece { width: 100%; height: 100%; filter: none; -webkit-user-drag: none; user-select: none; object-fit: contain; }

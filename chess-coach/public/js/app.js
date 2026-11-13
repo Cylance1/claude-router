@@ -6,6 +6,9 @@ const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<
 const md = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\*(.+?)\*/g, '<i>$1</i>').split(/\n{2,}/).map((p) => `<p>${p.replace(/\n/g, '<br>')}</p>`).join('');
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const store = { get: (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* ignore */ } } };
+const PIECE_BASE = 'https://images.chesscomfiles.com/chess-themes/pieces/neo/300/'; // loaded from chess.com by your browser; nothing is copied into this project
+const applyPieces = () => { window.PIECE_IMGS = (store.get('cc_pieces') || 'chesscom') === 'chesscom' ? Object.fromEntries(['w', 'b'].flatMap((c) => ['p', 'n', 'b', 'r', 'q', 'k'].map((t) => [c + t, `${PIECE_BASE}${c}${t}.png`]))) : null; };
+applyPieces();
 const toast = (m) => { const t = el('toast'); t.textContent = m; t.hidden = false; clearTimeout(toast.t); toast.t = setTimeout(() => (t.hidden = true), 3500); };
 
 async function api(path, body) {
@@ -40,8 +43,10 @@ function showTab(name) {
 el('nav').addEventListener('click', (e) => { const b = e.target.closest('button'); if (b) showTab(b.dataset.tab); });
 
 function renderWho() {
-  el('who').innerHTML = (S.user ? `<span>${esc(S.profile ? S.profile.username : S.user)}</span><button class="ghost small" id="logout">Switch</button>` : '') +
+  const ps = store.get('cc_pieces') || 'chesscom';
+  el('who').innerHTML = `<label class="small muted" for="pset">Pieces</label><select id="pset"><option value="chesscom"${ps === 'chesscom' ? ' selected' : ''}>chess.com</option><option value="original"${ps === 'original' ? ' selected' : ''}>original</option></select>` + (S.user ? `<span>${esc(S.profile ? S.profile.username : S.user)}</span><button class="ghost small" id="logout">Switch</button>` : '') +
     `<span class="badge ${S.cfg.ai ? 'ai' : ''}" title="${S.cfg.ai ? 'Claude writes the explanations' : 'Set ANTHROPIC_API_KEY for AI explanations and chat'}">${S.cfg.ai ? 'AI coach on' : 'Engine coach'}</span>`;
+  el('pset').onchange = (e) => { store.set('cc_pieces', e.target.value); location.reload(); };
   const lo = el('logout'); if (lo) lo.onclick = () => { S.user = ''; S.profile = null; S.games = []; store.set('cc_user', ''); renderWho(); showTab('games'); };
 }
 

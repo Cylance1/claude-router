@@ -80,7 +80,7 @@ Tools: `list_games`, `review_game`, `weakness_profile`, `get_puzzles`.
 - Theme labels are heuristics on top of the engine's line; the *move evaluation* is the engine's, the *name of the idea* occasionally isn't what a human coach would say.
 - Review depth is 14 (≈10–20 s per game). Deeper = slower, slightly more accurate.
 - Only standard chess (no variants). Games are matched to your account by username.
-- Piece graphics are an original hand-drawn SVG set (`public/js/pieces.js`).
+- Pieces: the full app loads chess.com's default (Neo) set from chess.com's servers in your browser (header dropdown switches to the original hand-drawn SVG set in `public/js/pieces.js`). The artwork is chess.com's, so it is never copied into this repository. For the hosted drill page, `node scripts/fetch-pieces.js` caches the set locally (git-ignored) so `build-drill.js` can embed it; keep that page private.
 - Everything is stored locally in `data/` (analyses, puzzles, progress); nothing is sent anywhere except requests to chess.com and, if you set a key, the position facts to the Anthropic API.
 
 ## Tests
