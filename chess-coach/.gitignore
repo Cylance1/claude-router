@@ -5,3 +5,5 @@ data/progress.json
 data/puzzles.json
 .share-password
 .env
+drill/data.json
+drill/index.html

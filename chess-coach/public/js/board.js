@@ -110,6 +110,7 @@ export class Board {
   down(e) {
     if (!this.interactive || this.locked) return;
     const s = this.sqAt(e); if (!s) return;
+    if (this.onSquare) { this.onSquare(s); return; } // tap-a-square mode (scan drills)
     if (!this.promoEl.hidden) { this.promoEl.hidden = true; }
     const p = this.chess.get(s);
     if (this.sel && this.sel !== s && this.legalTargets(this.sel).some((m) => m.to === s)) { this.attempt(this.sel, s); return; }

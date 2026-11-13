@@ -82,6 +82,7 @@ async function stepData(pool, fen, solutionMove) {
     puzzles: out,
     profile: { games: prof.games, accuracy: prof.avgAccuracy, perGame: prof.perGame, results: prof.results, phases: prof.phases,
       weaknesses: prof.weaknesses.slice(0, 7).map((w) => ({ theme: w.theme, label: w.label, count: w.count, blunders: w.blunders, advice: w.advice, lesson: w.lesson })) },
+    speed: require('../src/speed').computeSpeed(analyses),
     progress: { streak: stat(analyses.filter((a) => a.game.endTime >= cut)), before: stat(analyses.filter((a) => a.game.endTime < cut)), older: stat(analyses.slice(0, half)), newer: stat(analyses.slice(half)) },
   };
   fs.writeFileSync(path.join(__dirname, '..', 'drill', 'data.json'), JSON.stringify(data));
