@@ -157,6 +157,7 @@ const sideName = (s) => (s === 'w' ? 'White' : 'Black');
 async function load1() {
   const p = S.list[S.i]; if (!p) return finish();
   S.cur = { p, si: 0, wrong: 0, hints: 0, hintLevel: 0, done: false };
+  const cur = S.cur; replayToken++; // cancels any "Watch it" replay still running from the previous puzzle
   dots();
   board.flip(p.side); board.locked = true; board.interactive = true;
   board.load(p.setup ? p.setup.fen : p.fen);
@@ -165,9 +166,10 @@ async function load1() {
     : p.yourMove ? `From <b>your game</b>: your opponent had just erred and you played <b>${esc(p.yourMove)}</b>. Was there better?` : 'Your opponent just made a mistake. Punish it.';
   $('info').innerHTML = `<div class="msg"><b>${sideName(p.side)} to move.</b> Find the best move.<div class="small muted">${why}</div>
     <div style="margin-top:6px"><span class="tag">Puzzle ${S.i + 1} of ${S.list.length}</span><span class="tag">${'★'.repeat(p.difficulty)}${'☆'.repeat(5 - p.difficulty)}</span>${p.solution.length > 1 ? `<span class="tag">${Math.ceil(p.solution.length / 2)}-move idea</span>` : ''}</div></div>`;
-  if (p.setup) { await sleep(450); await board.play(p.setup.move); }
+  if (p.setup) { await sleep(450); if (S && S.cur !== cur) return; await board.play(p.setup.move); if (!S || S.cur !== cur) return; }
   board.locked = false; buttons(); startTimer();
 }
+let replayToken = 0; // "Watch it" replays check this so they stop when you move on
 let tick = null;
 function stopTimer() { clearInterval(tick); tick = null; }
 function startTimer() {
@@ -205,7 +207,7 @@ async function onMove(uci) {
     $('feed').innerHTML = `<div class="msg ok"><b>${esc(mv.san)}</b> is correct.</div>`;
     const reply = c.p.solution[c.si * 2 + 1];
     if (!reply) return solved();
-    await sleep(450); await board.playSan(c.p.solutionSan[c.si * 2 + 1]); c.si++;
+    await sleep(450); if (!S || S.cur !== c) return; await board.playSan(c.p.solutionSan[c.si * 2 + 1]); if (!S || S.cur !== c) return; c.si++;
     $('feed').innerHTML += `<div class="msg">Your opponent replied <b>${esc(c.p.solutionSan[c.si * 2 - 1])}</b>. What's next?</div>`;
     board.locked = false; return;
   }
@@ -214,6 +216,7 @@ async function onMove(uci) {
   board.setMarks({ [uci.slice(2, 4)]: 'bad' });
   $('feed').innerHTML = `<div class="msg no"><b>Not quite.</b> ${b ? md(b[0]) : `${esc(mv.san)} isn't the best move here.`}${b && b[1].length ? `<div class="small">For example: ${esc(b[1].join(' '))}</div>` : ''}${b && b[2] ? '<div class="small">That is a decent move, but there is something stronger.</div>' : ''}${c.wrong >= 2 && !c.hintLevel ? '<div class="small">Stuck? Try the hint.</div>' : ''}</div>`;
   await sleep(1100);
+  if (!S || S.cur !== c || c.done) return; // you pressed "Show solution", the timer ran out, or you moved on: leave the board alone
   board.load(before); board.locked = false;
 }
 function reveal(p) { return `<p>${esc(p.reveal.idea)}</p><p class="small">Line: ${esc(p.reveal.line)}</p><p class="small"><b>Remember:</b> ${esc(p.reveal.takeaway)}</p>`; }
@@ -225,18 +228,23 @@ function solved() {
   $('btns').innerHTML = `<button class="primary" id="next">${S.i + 1 >= S.list.length ? 'Finish' : 'Next puzzle'}</button>`; $('next').onclick = next;
 }
 function giveUp(why) {
-  const c = S.cur; c.done = true; stopTimer(); board.locked = true; S.results[S.i] = false; dots();
+  const c = S.cur; if (c.done) return; c.done = true; stopTimer(); // a second click must not record the miss twice board.locked = true; S.results[S.i] = false; dots();
   record(c.p, false, false);
   if (!S.retried.has(c.p.id) && S.list.length < 14) { S.retried.add(c.p.id); S.list.push(c.p); } // missed ones come back once, at the end
   $('feed').innerHTML = `<div class="msg no">${why ? `<div>${esc(why)}</div>` : ''}<b>The solution:</b> ${esc(c.p.reveal.line)}<span class="tag">${esc(c.p.themeLabel)}</span>${reveal(c.p)}<div class="small muted">This one comes back at the end of the session.</div></div>`;
   $('btns').innerHTML = `<button id="watch">Watch it</button><button class="primary" id="next">${S.i + 1 >= S.list.length ? 'Finish' : 'Next puzzle'}</button>`;
   $('next').onclick = next;
-  $('watch').onclick = async () => { board.load(c.p.fen); board.interactive = false; for (const san of c.p.solutionSan) { await sleep(700); await board.playSan(san); } board.interactive = true; };
+  $('watch').onclick = async () => {
+    const mine = ++replayToken;
+    board.load(c.p.fen); board.interactive = false;
+    for (const san of c.p.solutionSan) { await sleep(700); if (mine !== replayToken || !S || S.cur !== c) return; await board.playSan(san); }
+    if (mine === replayToken && S && S.cur === c) board.interactive = true;
+  };
   board.load(c.p.fen); board.setArrows([{ from: c.p.solution[0].slice(0, 2), to: c.p.solution[0].slice(2, 4) }]);
 }
 function next() { if (!S || !S.cur || !S.cur.done) return; stopTimer(); S.i++; if (S.i >= S.list.length) finish(); else load1(); }
 function finish() {
-  stopTimer();
+  stopTimer(); replayToken++;
   if (!S) { renderMenu(); return; }
   const done = S.results.map((r, i) => [r, S.list[i]]).filter(([r]) => r !== undefined);
   const ok = done.filter(([r]) => r).length;

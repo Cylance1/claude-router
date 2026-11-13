@@ -345,16 +345,18 @@ const sideName = (s) => (s === 'w' ? 'White' : 'Black');
 async function loadPuzzle() {
   const p = T.list[T.i]; if (!p) return finishSession();
   T.cur = { p, step: 0, attempts: 0, hints: 0, done: false, hintLevel: 0 };
+  const cur = T.cur; replayToken++; // cancels any "Watch it" replay still running from the previous puzzle
   drawDots();
   tb.flip(p.side); tb.locked = true; tb.interactive = true;
   tb.load(p.setup ? p.setup.fen : p.fen);
   el('pfeed').innerHTML = ''; el('pbtns').innerHTML = '';
   const orig = p.origin === 'my-mistake' ? `From <b>your game</b>: you played <b>${esc(p.yourMove)}</b> here. Find the move you should have played.` : p.yourMove ? `From <b>your game</b>: your opponent had just erred — you played <b>${esc(p.yourMove)}</b>. Was there better?` : 'Your opponent just made a mistake. Punish it.';
   el('pinfo').innerHTML = `<div class="pmsg"><b>${sideName(p.side)} to move</b> — find the best move.<br><span class="small muted">${orig}</span><div style="margin-top:.4rem"><span class="tag">Puzzle ${T.i + 1}/${T.list.length}</span><span class="tag">${'★'.repeat(p.difficulty)}${'☆'.repeat(5 - p.difficulty)}</span>${p.plies > 1 ? `<span class="tag">${Math.ceil(p.plies / 2)}-move idea</span>` : ''}</div></div>`;
-  if (p.setup) { await sleep(500); await tb.play(p.setup.move); }
+  if (p.setup) { await sleep(500); if (T.cur !== cur) return; await tb.play(p.setup.move); if (T.cur !== cur) return; }
   tb.locked = false;
   setButtons();
 }
+let replayToken = 0; // "Watch it" replays check this so they stop when you move on
 function setButtons() {
   const c = T.cur; const b = el('pbtns');
   if (c.done) return;
@@ -382,7 +384,7 @@ async function onPuzzleMove(uci) {
     if (r.alternative) { el('pfeed').innerHTML = `<div class="pmsg ok">✅ ${esc(r.message)}</div>`; return solved(); }
     el('pfeed').innerHTML = `<div class="pmsg ok">✅ <b>${esc(r.san)}</b> — correct!</div>`;
     if (r.done) return solved();
-    await sleep(450); await tb.playSan(r.replySan); c.step = r.nextStep; tb.locked = false;
+    await sleep(450); if (T.cur !== c) return; await tb.playSan(r.replySan); if (T.cur !== c) return; c.step = r.nextStep; tb.locked = false;
     el('pfeed').innerHTML += `<div class="pmsg">Your opponent replied <b>${esc(r.replySan)}</b>. Keep going — what's next?</div>`;
     return;
   }
@@ -391,6 +393,7 @@ async function onPuzzleMove(uci) {
   el('pfeed').innerHTML = `<div class="pmsg no"><b>✗ Not quite.</b> ${md(r.why)}${r.refutation && r.refutation.length ? `<p class="small">e.g. ${esc(r.refutation.join(' '))}</p>` : ''}
     ${c.attempts >= 2 && c.hintLevel === 0 ? '<p class="small">Stuck? Try the 💡 hint.</p>' : ''}${r.nearly ? '<p class="small">That\'s a decent move, but there\'s something stronger.</p>' : ''}</div>`;
   await sleep(1100);
+  if (T.cur !== c || c.done) return; // you pressed "Show solution" or moved on in the meantime: leave the board alone
   tb.load(fenBefore); tb.lastMove = null; tb.render(); tb.locked = false;
 }
 async function solved() {
@@ -404,7 +407,7 @@ async function solved() {
   el('p-next').onclick = next;
 }
 async function giveUp() {
-  const c = T.cur; c.done = true; tb.locked = true;
+  const c = T.cur; if (c.done) return; c.done = true; tb.locked = true; // a second click must not run this twice
   T.results[T.i] = false; drawDots();
   await api('/api/puzzle/result', { user: S.user || 'guest', puzzleId: c.p.id, solved: false, attempts: c.attempts, hintsUsed: c.hints }).catch(() => {});
   const rv = await api('/api/puzzle/reveal', { puzzleId: c.p.id });
@@ -412,14 +415,16 @@ async function giveUp() {
   el('pbtns').innerHTML = `<button id="p-replay">▶ Watch it</button><button class="primary" id="p-next">${T.i + 1 >= T.list.length ? 'Finish' : 'Next puzzle →'}</button>`;
   el('p-next').onclick = next;
   el('p-replay').onclick = async () => {
+    const mine = ++replayToken;
     tb.load(c.p.fen); tb.interactive = false;
-    for (const san of rv.solutionSan) { await sleep(700); await tb.playSan(san); }
-    tb.interactive = true;
+    for (const san of rv.solutionSan) { await sleep(700); if (mine !== replayToken || T.cur !== c) return; await tb.playSan(san); }
+    if (mine === replayToken && T.cur === c) tb.interactive = true;
   };
   tb.load(c.p.fen); tb.setArrows([{ from: rv.solution[0].slice(0, 2), to: rv.solution[0].slice(2, 4) }]);
 }
-function next() { T.i++; if (T.i >= T.list.length) finishSession(); else loadPuzzle(); }
+function next() { if (!T || !T.cur || !T.cur.done) return; T.i++; if (T.i >= T.list.length) finishSession(); else loadPuzzle(); }
 function finishSession() {
+  replayToken++;
   const box = el('tab-train');
   const done = T.results.filter((r) => r !== undefined);
   const ok = done.filter(Boolean).length;
