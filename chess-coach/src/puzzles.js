@@ -198,19 +198,21 @@ async function checkMove(pool, puzzle, step, uci) {
   }
   // Wrong: what punishes it?
   const after = new Chess(fen); after.move({ from: move.from, to: move.to, promotion: move.promotion });
-  const wasCheckmate = after.isCheckmate();
   const rr = after.isGameOver() ? { lines: [], best: null } : await pool.analyze(after.fen(), { depth: 14, multipv: 1 });
-  const refPv = rr.lines[0] ? rr.lines[0].pv : [];
-  const afterCp = rr.lines[0] ? -lineCp(rr.lines[0]) : 0; // student's view
-  const refSan = pvToSan(after.fen(), refPv, 4);
-  const analysis = refPv.length ? analyzeLine(after.fen(), refPv.slice(0, 3), rr.lines[0].mate) : null;
+  const afterCp = after.isCheckmate() ? 10000 : rr.lines[0] ? -lineCp(rr.lines[0]) : 0; // student's view
+  return { correct: false, ...wrongFeedback({ san: move.san, afterFen: after.fen(), refPv: rr.lines[0] ? rr.lines[0].pv : [], refMate: rr.lines[0] && rr.lines[0].mate, topCp, afterCp, wasCheckmate: after.isCheckmate() }) };
+}
+
+/** Explain why a non-solution move fails, given the engine's best reply to it. Shared by live checking and the static drill build. */
+function wrongFeedback({ san, afterFen, refPv, refMate, topCp, afterCp, wasCheckmate }) {
+  const refSan = pvToSan(afterFen, refPv, 4);
+  const analysis = refPv.length ? analyzeLine(afterFen, refPv.slice(0, 3), refMate) : null;
   let why;
-  if (analysis && analysis.themes.includes('mate') && rr.lines[0].mate > 0) why = `That walks into **${refSan[0]}** and forced checkmate.`;
-  else if (analysis && analysis.gain >= 2) why = `After ${move.san}, your opponent plays **${refSan[0]}** and wins about ${Math.round(analysis.gain)} points of material.`;
-  else if (winPct(topCp) - winPct(afterCp) > 15) why = `${move.san} isn't strong enough — your opponent can answer **${refSan[0] || '…'}** and the advantage disappears.`;
-  else why = `${move.san} is playable, but it is not the best — there is a stronger idea.`;
-  const better = winPct(topCp) - winPct(afterCp) < 12;
-  return { correct: false, san: move.san, why, refutation: refSan, nearly: better, wasCheckmate };
+  if (analysis && analysis.themes.includes('mate') && refMate > 0) why = `That walks into **${refSan[0]}** and forced checkmate.`;
+  else if (analysis && analysis.gain >= 2) why = `After ${san}, your opponent plays **${refSan[0]}** and wins about ${Math.round(analysis.gain)} points of material.`;
+  else if (winPct(topCp) - winPct(afterCp) > 15) why = `${san} isn't strong enough — your opponent can answer **${refSan[0] || '…'}** and the advantage disappears.`;
+  else why = `${san} is playable, but it is not the best — there is a stronger idea.`;
+  return { san, why, refutation: refSan, nearly: winPct(topCp) - winPct(afterCp) < 12, wasCheckmate: !!wasCheckmate };
 }
 
 function describeSolution(puzzle) {
@@ -226,4 +228,4 @@ function describeSolution(puzzle) {
   };
 }
 
-module.exports = { mineAnalysis, mineGames, add, all, get, load, pick, checkMove, publicView, stats, hints, describeSolution, id, positionAt };
+module.exports = { wrongFeedback, mineAnalysis, mineGames, add, all, get, load, pick, checkMove, publicView, stats, hints, describeSolution, id, positionAt };
