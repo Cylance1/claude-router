@@ -1,0 +1,7 @@
+node_modules
+data/cache
+data/analyses
+data/progress.json
+data/puzzles.json
+.git
+*.log
