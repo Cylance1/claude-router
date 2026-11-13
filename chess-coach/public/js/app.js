@@ -72,11 +72,28 @@ function renderGames(error) {
   box.innerHTML = `<div class="profile card">${p.avatar ? `<img src="${esc(p.avatar)}" alt="">` : '<div class="logo">♟</div>'}
       <div style="flex:1"><h2 style="margin:0">${esc(p.username)}</h2><div>${rt}</div></div>
       <div><button class="primary" id="batch">Review my last 10 games</button></div></div>
+    ${goalHtml(p)}
     <div id="batchstat"></div>
     <h3>Recent games</h3><div class="games" id="glist"></div>`;
   el('batch').onclick = batchReview;
+  bindGoal();
   el('glist').innerHTML = S.games.length ? S.games.map((g, i) => gameRow(g, i)).join('') : '<p class="muted">No recent standard chess games found.</p>';
   el('glist').onclick = (e) => { const b = e.target.closest('button[data-i]'); if (b) openGame(S.games[+b.dataset.i]); };
+}
+function goalHtml(p) {
+  const mode = store.get('cc_goal_mode') || 'rapid'; const target = +store.get('cc_goal') || 2000;
+  const cur = (p.ratings || {})[mode] || 0; const pct = Math.max(1.5, Math.min(100, cur / target * 100));
+  const next = [500, 800, 1000, 1200, 1500, 1800, 2000, 2200, 2500].find((m) => m > cur && m <= Math.max(target, cur + 1)) || target;
+  return `<div class="card" style="margin-bottom:1rem"><div class="row" style="justify-content:space-between"><b>Road to <span id="gt">${target}</span></b>
+    <span class="row"><select id="gmode"><option value="rapid"${mode === 'rapid' ? ' selected' : ''}>rapid</option><option value="blitz"${mode === 'blitz' ? ' selected' : ''}>blitz</option></select>
+    <input id="gin" type="number" min="200" max="3500" value="${target}" style="width:90px" aria-label="Goal rating"></span></div>
+    <div class="progress" style="height:14px;margin:.6rem 0" role="progressbar" aria-valuenow="${cur}" aria-valuemax="${target}"><i style="width:${pct}%"></i></div>
+    <div class="row small"><span><b>${cur}</b> now</span><span class="muted">${Math.max(0, target - cur).toLocaleString()} to go</span><span class="muted">next stop ${next} (${Math.max(0, next - cur)} away)</span></div></div>`;
+}
+function bindGoal() {
+  const m = el('gmode'); const g = el('gin'); if (!m || !g) return;
+  m.onchange = () => { store.set('cc_goal_mode', m.value); renderGames(); };
+  g.onchange = () => { const v = Math.round(+g.value); if (v >= 200 && v <= 3500) { store.set('cc_goal', String(v)); renderGames(); } };
 }
 function gameRow(g, i) {
   const date = new Date(g.endTime * 1000).toLocaleDateString();

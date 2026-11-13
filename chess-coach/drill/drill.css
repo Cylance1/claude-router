@@ -81,3 +81,11 @@ table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nu
 .seg { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; } .seg button { border: 0; border-radius: 0; min-height: 36px; background: var(--panel); } .seg button.on { background: var(--accent); color: var(--accent-ink); }
 .legend { display: flex; gap: 12px; flex-wrap: wrap; font-size: .8rem; color: var(--muted); } .legend b { display: inline-block; width: .8em; height: .8em; border-radius: 3px; margin-right: 4px; vertical-align: -1px; }
 .note { border-left: 3px solid var(--info); padding: 2px 0 2px 12px; }
+
+.goal { display: grid; gap: 8px; } .gbar { position: relative; height: 16px; border-radius: 99px; background: var(--line); }
+.gbar > i { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: var(--accent); min-width: 8px; }
+.gbar > u { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); opacity: .35; text-decoration: none; }
+.gticks { position: relative; height: 1.1em; font-size: .72rem; color: var(--muted); } .gticks span { position: absolute; transform: translateX(-50%); font-variant-numeric: tabular-nums; } .gticks span:last-child { transform: translateX(-100%); } .gticks span:first-child { transform: none; }
+.goal .nums { display: flex; gap: 6px 18px; flex-wrap: wrap; } .goal .nums b { font-family: var(--head); font-size: 1.15rem; font-variant-numeric: tabular-nums; }
+.spark { width: 100%; height: 56px; display: block; } .goal input { width: 96px; padding: .4em .6em; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--ink); font: inherit; min-height: 36px; }
+.opens { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }

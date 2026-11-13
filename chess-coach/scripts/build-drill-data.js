@@ -5,7 +5,8 @@
 const fs = require('fs');
 const path = require('path');
 const { Chess } = require('chess.js');
-const { EnginePool, lineCp, winPct } = require('../src/engine');
+const { EnginePool } = require('../src/engine');
+const { stepData } = require('../src/drillstep');
 const P = require('../src/puzzles');
 const store = require('../src/store');
 const { buildProfile } = require('../src/profile');
@@ -13,29 +14,6 @@ const { THEME_LABEL } = require('../src/themes');
 
 const user = process.argv[2];
 const limit = +process.argv[3] || 26;
-
-async function stepData(pool, fen, solutionMove) {
-  const base = new Chess(fen);
-  const legal = base.moves({ verbose: true });
-  const res = await Promise.all(legal.map(async (m) => {
-    const ch = new Chess(fen); ch.move(m);
-    const uci = m.from + m.to + (m.promotion || '');
-    if (ch.isCheckmate()) return { uci, san: m.san, cp: 10000, refPv: [], afterFen: ch.fen(), mated: true };
-    if (ch.isGameOver()) return { uci, san: m.san, cp: 0, refPv: [], afterFen: ch.fen() };
-    const r = await pool.analyze(ch.fen(), { depth: 11 });
-    const l = r.lines[0];
-    return { uci, san: m.san, cp: -lineCp(l), refPv: l.pv, refMate: l.mate, afterFen: ch.fen() };
-  }));
-  const best = Math.max(...res.map((r) => r.cp));
-  const ok = res.filter((r) => r.uci === solutionMove || winPct(best) - winPct(r.cp) < 5).map((r) => r.uci);
-  const bad = {};
-  for (const r of res) {
-    if (ok.includes(r.uci)) continue;
-    const f = P.wrongFeedback({ san: r.san, afterFen: r.afterFen, refPv: r.refPv, refMate: r.refMate, topCp: best, afterCp: r.cp, wasCheckmate: r.mated });
-    bad[r.uci] = [f.why, f.refutation, f.nearly ? 1 : 0];
-  }
-  return { ok, bad };
-}
 
 (async () => {
   const all = P.all();
