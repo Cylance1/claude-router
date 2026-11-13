@@ -167,11 +167,11 @@ function renderSettings() {
   const row = (label, id, opts, cur, attr) => `<div class="srow"><div class="slabel">${label}</div><span class="seg" id="${id}">${opts.map(([v, l]) => `<button data-${attr}="${v}" class="${String(cur) === String(v) ? 'on' : ''}">${l}</button>`).join('')}</span></div>`;
   const piecesRow = window.PIECE_IMGS_NEO ? row('Pieces', 'pseg', [['chesscom', 'chess.com'], ['original', 'Original']], mem.pieces === 'original' ? 'original' : 'chesscom', 'p') : '';
   view().innerHTML = `<div class="settings">
-    ${row('Countdown before each challenge', 'cdseg', [[0, 'Off'], [3, '3 s'], [5, '5 s']], cdSecs(), 'd')}
+    ${row('Countdown', 'cdseg', [[0, 'Off'], [3, '3 s'], [5, '5 s']], cdSecs(), 'd')}
     ${row('Puzzle timer', 'seg', [[0, 'Off'], [10, '10 s'], [5, '5 s']], mem.timer || 0, 't')}
-    ${row('Safety scan finds', 'smode', [['undefended', 'Undefended'], ['hanging', 'Winnable']], scanMode(), 's')}
-    ${row('Square control: colour', 'cside', [['mixed', 'Both'], ['w', 'White'], ['b', 'Black']], sidePref(), 'c')}
-    ${row('Square control: squares', 'creg', [['both', 'Whole'], ['near', 'Near half'], ['far', 'Far half']], region(), 'r')}
+    ${row('Scan finds', 'smode', [['undefended', 'Undefended'], ['hanging', 'Winnable']], scanMode(), 's')}
+    ${row('Control: colour', 'cside', [['mixed', 'Both'], ['w', 'White'], ['b', 'Black']], sidePref(), 'c')}
+    ${row('Control: squares', 'creg', [['both', 'Whole'], ['near', 'Near half'], ['far', 'Far half']], region(), 'r')}
     ${piecesRow}
     ${row('Rating goal', 'gseg', [['rapid', 'Rapid'], ['blitz', 'Blitz']], goalMode(), 'm')}
     <p class="hint">Saved on this device. Near half is the side being read, far half is the opponent's side.</p></div>`;
@@ -199,6 +199,7 @@ function sessionShell(title, onQuit, boardOpts) {
   $('bottom').innerHTML = '<div class="actions" id="btns"></div>';
   board = new Board($('pb'), boardOpts || {});
   $('quit').onclick = onQuit; $('flip').onclick = () => board.flip();
+  watchPanel();
 }
 // end-of-drill screen: result in the stage, "again" and "menu" in the bottom bar
 function summaryScreen(title, big, bigLabel, lines, note, againLabel, againFn) {
@@ -206,6 +207,24 @@ function summaryScreen(title, big, bigLabel, lines, note, againLabel, againFn) {
   view().innerHTML = `<div class="summary"><h2>${title}</h2><div class="bigstat"><b>${big}</b><span>${bigLabel}</span></div>${lines}${note ? `<p class="note2">${note}</p>` : ''}</div>`;
   $('bottom').innerHTML = `<div class="actions"><button class="primary" id="again">${againLabel}</button><button id="menu">Menu</button></div>`;
   $('again').onclick = againFn; $('menu').onclick = renderMenu;
+}
+// Keep every message on screen without scrolling: shrink the text a little, then give the text more room with a smaller board,
+// then (last resort) drop the secondary lines. Runs whenever the message area changes.
+function fitPanel() {
+  const p = document.querySelector('.panel'); const st = view(); const feed = $('feed');
+  if (!p || !feed) return;
+  st.classList.remove('fb'); p.classList.remove('tight'); p.style.removeProperty('--pfs');
+  if (!feed.children.length) return;
+  const over = () => p.scrollHeight > p.clientHeight + 1;
+  const shrink = (min) => { let fs = 14; while (over() && fs > min) { fs -= 0.5; p.style.setProperty('--pfs', fs + 'px'); } return !over(); };
+  if (shrink(12.5)) return;
+  st.classList.add('fb'); p.style.removeProperty('--pfs'); // a smaller board while you read the explanation
+  if (shrink(11)) return;
+  p.classList.add('tight');
+}
+function watchPanel() {
+  const obs = new MutationObserver(() => fitPanel());
+  ['info', 'feed'].forEach((id) => { if ($(id)) obs.observe($(id), { childList: true, subtree: true, characterData: true }); });
 }
 function renderSession() { sessionShell(S.label, finish, { onMove }); dots(); }
 function dots() { $('dots').innerHTML = S.list.map((p, i) => `<i class="${S.results[i] === undefined ? '' : S.results[i] ? 'ok' : 'no'} ${i === S.i ? 'cur' : ''}"></i>`).join(''); }
@@ -276,7 +295,7 @@ async function onMove(uci) {
   if (!S || S.cur !== c || c.done) return; // you pressed "Show solution", the timer ran out, or you moved on: leave the board alone
   board.load(before); board.locked = false;
 }
-function reveal(p) { return `<div class="rv"><div>${esc(p.reveal.idea)}</div><div class="small">Line: ${esc(p.reveal.line)}</div><div class="small"><b>Remember:</b> ${esc(p.reveal.takeaway)}</div></div>`; }
+function reveal(p) { return `<div class="rv"><div>${esc(p.reveal.idea)}</div><div class="small">Line: ${esc(p.reveal.line)}</div><div class="small rem"><b>Remember:</b> ${esc(p.reveal.takeaway)}</div></div>`; }
 function solved() {
   const c = S.cur; c.done = true; stopTimer();
   if (c.wrong === 0 && c.firstMs) { mem.speed.n++; mem.speed.ms += c.firstMs; if (!mem.timer || c.firstMs <= mem.timer * 1000) mem.speed.inTime++; } board.locked = true; S.results[S.i] = true; dots();
@@ -561,4 +580,4 @@ function renderProgress() {
 
 function afterProgress() { bindGoal(renderProgress); }
 show('drill');
-window.__drill = { get session() { return S; }, loose: LOOSE }; // debugging hook
+window.__drill = { get session() { return S; }, loose: LOOSE, rerender: () => renderMenu() }; // debugging hook

@@ -171,4 +171,41 @@ body { margin: 0; overscroll-behavior: none; }
 .bigstat { display: flex; align-items: baseline; gap: 8px; } .bigstat b { font-family: var(--head); font-size: 2.6rem; line-height: 1; color: var(--accent); } .bigstat span { color: var(--muted); }
 .srow2 { display: flex; justify-content: space-between; border-bottom: 1px solid var(--line); padding: 5px 0; }
 
+/* ===== fitting: the message text scales with --pfs (set by fitPanel), and everything adapts to short and landscape screens ===== */
+.panel { font-size: var(--pfs, 14px); line-height: 1.35; }
+.panel .status { font-size: 1.06em; } .panel .status span { font-size: .88em; }
+.panel .why { font-size: .9em; }
+.panel .msg .sec > div { font-size: .93em; } .panel .small { font-size: .88em; }
+.panel .legend { font-size: .8em; }
+.stage.fb .boardbox { width: min(100cqw, 44cqh); }
+.panel.tight .legend, .panel.tight .rv .rem { display: none; }
+.panel.tight .sec > div:nth-child(n+3) { display: none; }
+.ratingchip { min-height: 36px; }
+/* short phones (about 640px tall and under): tighter rows */
+@media (max-height: 700px) {
+  .wrow { padding: 5px 8px 5px 10px; } .wrow button { min-height: 36px; }
+  .weakpage { gap: 6px; } .weakpage .hint { display: none; } .check { font-size: .74rem; }
+  .settings { gap: 6px; } .srow { padding: 3px 6px 3px 10px; } .srow .seg button { min-height: 34px; }
+  .pagebody .card { padding: 8px 10px; }
+}
+@media (max-height: 600px) {
+  .weakpage .wrow:nth-child(n+6) { display: none; } .weakpage .check { display: none; }
+  .settings { gap: 4px; } .srow .seg button { min-height: 32px; } .settings .hint { display: none; } .slabel { font-size: .82rem; }
+}
+/* landscape phones: board on the left, messages on the right; menus in more columns */
+@media (orientation: landscape) and (max-height: 520px) {
+  .stage { flex-direction: row; align-items: stretch; gap: 12px; padding-top: 8px; padding-bottom: 8px; }
+  .boardbox { width: min(100cqh, 46cqw); align-self: center; }
+  .stage.fb .boardbox { width: min(100cqh, 40cqw); }
+  .panel { flex: 1 1 0; }
+  .tiles { grid-template-columns: repeat(4, 1fr); } .tile.hero { grid-column: span 2; }
+  .tile b { font-size: clamp(.78rem, 1.7cqw, .95rem); } .tile span { font-size: clamp(.64rem, 1.4cqw, .76rem); }
+  .settings, .weakpage { grid-template-columns: 1fr 1fr; } .settings .hint, .weakpage .hint, .weakpage .msg, .weakpage .check { grid-column: 1 / -1; }
+  .pagebody { grid-template-columns: 1fr 1fr; } .pagebar { width: auto; flex: 0 0 auto; flex-direction: column; } .pagebar button { flex: none; }
+  .stage:has(.pagebar) { flex-direction: row; }
+  .app > header.edge.top { padding-top: 4px; padding-bottom: 4px; } .app > footer.edge.bottom { padding-top: 3px; padding-bottom: 4px; }
+  .tabs button { min-height: 42px; flex-direction: row; gap: 6px; font-size: .8rem; } .actions { min-height: 44px; } .actions button { min-height: 42px; }
+  .brandrow .brand { font-size: .95rem; } .ratingchip { min-height: 30px; } .topbar { margin-top: 3px; }
+}
+
 img.piece { width: 100%; height: 100%; filter: none; -webkit-user-drag: none; user-select: none; object-fit: contain; }
