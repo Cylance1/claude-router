@@ -217,10 +217,8 @@ function fitPanel() {
   if (!feed.children.length) return;
   const over = () => p.scrollHeight > p.clientHeight + 1;
   const shrink = (min) => { let fs = 14; while (over() && fs > min) { fs -= 0.5; p.style.setProperty('--pfs', fs + 'px'); } return !over(); };
-  if (shrink(12.5)) return;
-  st.classList.add('fb'); p.style.removeProperty('--pfs'); // a smaller board while you read the explanation
   if (shrink(11)) return;
-  p.classList.add('tight');
+  p.classList.add('tight'); // last resort: drop the secondary lines. The board always stays full width.
 }
 function watchPanel() {
   const obs = new MutationObserver(() => fitPanel());

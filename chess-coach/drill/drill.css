@@ -182,6 +182,11 @@ body { margin: 0; overscroll-behavior: none; }
 .panel.tight .sec > div:nth-child(n+3) { display: none; }
 .ratingchip { min-height: 36px; }
 .panel .status .chip.w { color: #1b1b1b; } .panel .status .chip.b { color: #f2f2ee; } /* the status line's muted colour must not wash out the colour chip */
+/* ===== edge-to-edge board: as wide as the screen, like the chess.com app. Text adapts to what is left. ===== */
+.stage { padding: 10px 0; }
+.stage > :not(.boardbox) { margin-left: max(14px, env(safe-area-inset-left, 0px)); margin-right: max(14px, env(safe-area-inset-right, 0px)); }
+.stage > .boardbox, .stage.fb > .boardbox { width: min(100cqw, calc(100cqh - 135px)); max-width: 100%; margin: 0 auto; }
+.boardbox .board { border-radius: 0; box-shadow: none; }
 /* short phones (about 640px tall and under): tighter rows */
 @media (max-height: 700px) {
   .wrow { padding: 5px 8px 5px 10px; } .wrow button { min-height: 36px; }
@@ -196,9 +201,9 @@ body { margin: 0; overscroll-behavior: none; }
 /* landscape phones: board on the left, messages on the right; menus in more columns */
 @media (orientation: landscape) and (max-height: 520px) {
   .stage { flex-direction: row; align-items: stretch; gap: 12px; padding-top: 8px; padding-bottom: 8px; }
-  .boardbox { width: min(100cqh, 46cqw); align-self: center; }
-  .stage.fb .boardbox { width: min(100cqh, 40cqw); }
-  .panel { flex: 1 1 0; }
+  .stage { padding: 6px 0; gap: 0; }
+  .stage > .boardbox, .stage.fb > .boardbox { width: min(100cqh, 58cqw); margin: 0; align-self: center; }
+  .stage > .panel { flex: 1 1 0; margin-left: 12px; }
   .tiles { grid-template-columns: repeat(4, 1fr); } .tile.hero { grid-column: span 2; }
   .tile b { font-size: clamp(.78rem, 1.7cqw, .95rem); } .tile span { font-size: clamp(.64rem, 1.4cqw, .76rem); }
   .settings, .weakpage { grid-template-columns: 1fr 1fr; } .settings .hint, .weakpage .hint, .weakpage .msg, .weakpage .check { grid-column: 1 / -1; }
