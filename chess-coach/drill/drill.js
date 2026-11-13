@@ -234,7 +234,7 @@ function giveUp(why) {
   $('watch').onclick = async () => { board.load(c.p.fen); board.interactive = false; for (const san of c.p.solutionSan) { await sleep(700); await board.playSan(san); } board.interactive = true; };
   board.load(c.p.fen); board.setArrows([{ from: c.p.solution[0].slice(0, 2), to: c.p.solution[0].slice(2, 4) }]);
 }
-function next() { stopTimer(); S.i++; if (S.i >= S.list.length) finish(); else load1(); }
+function next() { if (!S || !S.cur || !S.cur.done) return; stopTimer(); S.i++; if (S.i >= S.list.length) finish(); else load1(); }
 function finish() {
   stopTimer();
   if (!S) { renderMenu(); return; }
@@ -256,17 +256,27 @@ const LOOSE = makeLoose(Chess);
 const TAP = ['n', 'b', 'r', 'q']; const PNAME = { n: 'knight', b: 'bishop', r: 'rook', q: 'queen' };
 const scanMode = () => (mem.scanMode === 'hanging' ? 'hanging' : 'undefended');
 const truthOf = (r) => r.pieces.filter((x) => (scanMode() === 'hanging' ? x.hanging : x.undefended));
-let scanQueue = [];
+// Rounds come from positions analysed at build time (DATA.scan), so choosing the next one is instant.
+const expandPieces = (arr) => arr.map(([sq, c, t, d, b, at, g]) => ({
+  square: sq, color: c, type: t,
+  defenders: d.map((x) => ({ square: x.slice(0, 2), type: x[2] })),
+  blocked: b.map((x) => ({ square: x.slice(0, 2), type: x[2], why: x[2] === 'k' ? 'the king would step into check' : 'it is pinned' })),
+  attackers: at.map((x) => ({ square: x.slice(0, 2), type: x[2] })),
+  undefended: d.length === 0, hanging: g > 0, gain: g,
+}));
+let scanPool = null;
 function nextScanRound(wantNone) {
-  const seen = new Set(); const max = scanMode() === 'hanging' ? 3 : 5;
-  if (!scanQueue.length) scanQueue = PUZ.map((p) => ({ p, k: Math.random() + (p.mine ? 0.4 : 0) })).sort((a, b) => b.k - a.k).map((x) => x.p);
-  for (let tries = 0; tries < 80 && scanQueue.length; tries++) {
-    const p = scanQueue.shift(); const key = p.fen.split(' ')[0]; if (seen.has(key)) continue; seen.add(key);
-    let pieces; try { pieces = LOOSE.analyze(p.fen); } catch (e) { continue; }
-    const r = { fen: p.fen, side: p.side, pieces }; const n = truthOf(r).length;
-    if (wantNone ? n === 0 : n >= 1 && n <= max) return r;
-  }
-  return null;
+  if (!scanPool) scanPool = (DATA.scan || []).map((x) => ({ fen: `${x.f} - - 0 1`, side: x.f.split(' ')[1], mine: x.m, raw: x.p, pieces: null }));
+  const max = scanMode() === 'hanging' ? 3 : 5;
+  const recent = new Set(mem.scanSeen || []);
+  const ok = scanPool.filter((r) => {
+    const n = r.raw.filter((x) => (scanMode() === 'hanging' ? x[6] > 0 : x[3].length === 0)).length;
+    return !recent.has(r.fen) && (wantNone ? n === 0 : n >= 1 && n <= max);
+  });
+  if (!ok.length) { mem.scanSeen = []; return wantNone ? null : scanPool.length ? nextScanRound(false) : null; }
+  const r = ok[Math.floor(Math.random() * ok.length)];
+  mem.scanSeen = [...(mem.scanSeen || []), r.fen].slice(-300); save();
+  return { fen: r.fen, side: r.side, pieces: expandPieces(r.raw) };
 }
 function startScan() { S = { scan: true, active: true, rounds: [], total: 8, i: 0, score: [], label: 'Safety scan' }; renderScan(); scanRound(); }
 function renderScan() {
@@ -294,7 +304,8 @@ function scanRound() {
     : 'Tap every knight, bishop, rook or queen that <b>nothing defends</b>. A piece only defends if it could really recapture: a pinned piece does not, and neither does a king that would step into check.';
   $('info').innerHTML = `<div class="msg"><b>${sideName(r.side)} to move.</b> ${rule} Either colour. Nothing? Press <b>None</b>.<div class="timer" id="tm"><i id="tmi"></i></div></div>`;
   $('feed').innerHTML = ''; $('btns').innerHTML = '<button class="primary" id="done">Done</button><button id="none">None</button>';
-  $('done').onclick = scanCheck; $('none').onclick = () => { S.cur.picks.clear(); scanCheck(); };
+  const armed = () => Date.now() - S.cur.t0 > 400; // a stray second click on the previous Next must not submit this round
+  $('done').onclick = () => { if (armed()) scanCheck(); }; $('none').onclick = () => { if (!armed()) return; S.cur.picks.clear(); scanCheck(); };
   tick = setInterval(() => { const left = total - (Date.now() - S.cur.t0); const bar = $('tmi'); if (!bar) return stopTimer(); bar.style.width = Math.max(0, left / total * 100) + '%'; $('tm').classList.toggle('low', left < 3000); if (left <= 0) scanCheck(); }, 100);
 }
 function scanCheck() {
@@ -318,7 +329,7 @@ function scanCheck() {
     ${!truth.size && !c.picks.size ? '<div class="small">Nothing here qualified.</div>' : ''}
     <div class="legend" style="margin-top:8px"><span><b style="background:rgba(59,143,90,.7)"></b>found</span><span><b style="background:rgba(200,55,45,.7)"></b>not ${what}</span><span><b style="background:rgba(59,115,185,.7)"></b>missed</span><span>green arrow: defender · red arrow: attacker</span></div></div>`;
   $('btns').innerHTML = `<button class="primary" id="next">${S.i + 1 >= S.total ? 'Finish' : 'Next position'}</button>`;
-  $('next').onclick = () => { S.i++; if (S.i >= S.total) scanSummary(); else scanRound(); };
+  $('next').onclick = (e) => { if (e.currentTarget.disabled) return; e.currentTarget.disabled = true; S.i++; if (S.i >= S.total) scanSummary(); else scanRound(); };
 }
 function scanSummary() {
   stopTimer(); if (board) board.onSquare = null;
