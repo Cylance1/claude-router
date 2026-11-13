@@ -1,7 +1,7 @@
 // Self-contained interactive chessboard (no external assets): click or drag to move, arrows, highlights, animation.
 import { Chess } from '/vendor/chess.js';
+import { pieceSvg } from '/js/pieces.js';
 
-const GLYPH = { k: '♚', q: '♛', r: '♜', b: '♝', n: '♞', p: '♟' };
 const FILES = 'abcdefgh';
 
 export class Board {
@@ -84,7 +84,7 @@ export class Board {
       const col = this.orientation === 'w' ? f : 7 - f; const row = this.orientation === 'w' ? 7 - r : r;
       const coord = (col === 0 ? `<i class="rk">${r + 1}</i>` : '') + (row === 7 ? `<i class="fl">${s[0]}</i>` : '');
       const dot = this.sel && this.legalTargets(this.sel).some((m) => m.to === s) ? `<b class="${p ? 'cap' : 'dot'}"></b>` : '';
-      return `<div class="${cls.join(' ')}" data-sq="${s}">${coord}${dot}${p ? `<span class="piece ${p.color}">${GLYPH[p.type]}</span>` : ''}</div>`;
+      return `<div class="${cls.join(' ')}" data-sq="${s}">${coord}${dot}${p ? pieceSvg(p.color, p.type) : ''}</div>`;
     }).join('');
     this.grid.innerHTML = html;
     this.drawArrows();
@@ -138,7 +138,7 @@ export class Board {
     const mv = this.legalTargets(from).find((m) => m.to === to);
     if (mv.promotion) {
       this.promoEl.hidden = false;
-      this.promoEl.innerHTML = ['q', 'r', 'b', 'n'].map((t) => `<button data-p="${t}" class="piece ${this.chess.turn()}">${GLYPH[t]}</button>`).join('');
+      this.promoEl.innerHTML = ['q', 'r', 'b', 'n'].map((t) => `<button data-p="${t}">${pieceSvg(this.chess.turn(), t)}</button>`).join('');
       this.promoEl.onclick = (ev) => { const b = ev.target.closest('button'); if (!b) return; this.promoEl.hidden = true; this.commit(from, to, b.dataset.p); };
       return;
     }

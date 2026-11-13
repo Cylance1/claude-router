@@ -14,7 +14,40 @@ const { LESSONS } = require('./src/lessons');
 const { THEME_LABEL } = require('./src/themes');
 
 const app = express();
+app.set('trust proxy', true);
+app.disable('x-powered-by');
+
+// ---------- access control (for hosting on the internet) ----------
+//  APP_PASSWORD   : if set, every request needs HTTP Basic auth with this password (any username)
+//  ALLOWED_USERS  : comma-separated chess.com usernames; if set, only those can be analysed
+const PASSWORD = process.env.APP_PASSWORD || '';
+const ALLOWED = (process.env.ALLOWED_USERS || '').split(',').map((u) => cc.clean(u)).filter(Boolean);
+const safeEq = (a, b) => { const x = Buffer.from(a); const y = Buffer.from(b); return x.length === y.length && crypto.timingSafeEqual(x, y); };
+const failures = new Map(); // ip -> {n, until}
+app.get('/healthz', (req, res) => res.type('text').send('ok'));
+app.use((req, res, next) => {
+  if (!PASSWORD) return next();
+  const f = failures.get(req.ip);
+  if (f && f.until > Date.now()) return res.status(429).type('text').send('Too many attempts. Try again in a few minutes.');
+  const h = req.headers.authorization || '';
+  if (h.startsWith('Basic ')) {
+    const given = Buffer.from(h.slice(6), 'base64').toString().split(':').slice(1).join(':');
+    if (safeEq(given, PASSWORD)) { failures.delete(req.ip); return next(); }
+    const n = ((f && f.n) || 0) + 1; failures.set(req.ip, { n, until: n >= 8 ? Date.now() + 10 * 60e3 : 0 });
+  }
+  res.set('WWW-Authenticate', 'Basic realm="Chess Coach", charset="UTF-8"').status(401).type('text').send('Password required');
+});
+app.use((req, res, next) => { // security headers
+  res.set({ 'X-Content-Type-Options': 'nosniff', 'X-Frame-Options': 'DENY', 'Referrer-Policy': 'no-referrer',
+    'Content-Security-Policy': "default-src 'self'; img-src 'self' https://images.chesscomfiles.com data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'" });
+  next();
+});
 app.use(express.json({ limit: '1mb' }));
+app.use('/api', (req, res, next) => { // restrict which chess.com accounts can be analysed
+  const u = req.query.user || (req.body && req.body.user);
+  if (ALLOWED.length && u && !ALLOWED.includes(cc.clean(u)) && cc.clean(u) !== 'guest') return res.status(403).json({ error: 'This coach is private; that username is not on the allowed list.' });
+  next();
+});
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/vendor/chess.js', express.static(path.join(__dirname, 'node_modules/chess.js/dist/esm/chess.js')));
 
@@ -23,7 +56,11 @@ const pool = () => (_pool || (_pool = new EnginePool()));
 
 // ---------- background jobs ----------
 const jobs = new Map();
+const MAX_JOBS = +process.env.MAX_JOBS || 2;
 function startJob(type, fn) {
+  if ([...jobs.values()].filter((j) => j.status === 'running').length >= MAX_JOBS) {
+    const e = new Error('The coach is busy with other analyses right now — try again in a minute.'); e.status = 429; throw e;
+  }
   const job = { id: crypto.randomUUID(), type, status: 'running', progress: 0, result: null, error: null, started: Date.now() };
   jobs.set(job.id, job);
   fn((p, extra) => { job.progress = Math.max(job.progress, Math.min(1, p)); if (extra) job.info = extra; })
@@ -32,11 +69,11 @@ function startJob(type, fn) {
   return job;
 }
 const wrap = (fn) => (req, res) => Promise.resolve(fn(req, res)).catch((e) => {
-  const status = e.status && e.status >= 400 && e.status < 600 ? (e.status === 404 ? 404 : e.status) : 500;
-  res.status(status).json({ error: e.status === 404 ? 'That chess.com user was not found.' : e.message });
+  const status = e.status && e.status >= 400 && e.status < 600 ? e.status : 500;
+  res.status(status).json({ error: e.status === 404 && /chess\.com/.test(e.message) ? 'That chess.com user was not found.' : e.message });
 });
 
-app.get('/api/config', (req, res) => res.json({ ai: coach.hasClaude(), model: process.env.COACH_MODEL || 'claude-sonnet-5-5', themes: THEME_LABEL, library: P.stats() }));
+app.get('/api/config', (req, res) => res.json({ defaultUser: process.env.DEFAULT_USER || ALLOWED[0] || '', private: !!PASSWORD, ai: coach.hasClaude(), model: process.env.COACH_MODEL || 'claude-sonnet-5-5', themes: THEME_LABEL, library: P.stats() }));
 
 app.get('/api/jobs/:id', (req, res) => {
   const j = jobs.get(req.params.id);
@@ -184,7 +221,13 @@ app.get('/api/lessons/:theme', wrap((req, res) => {
 }));
 
 const port = +process.env.PORT || 3000;
+const host = process.env.HOST || '127.0.0.1';
 if (require.main === module) {
-  app.listen(port, () => console.log(`Chess Coach running on http://localhost:${port}  (AI coach: ${coach.hasClaude() ? 'on' : 'off – set ANTHROPIC_API_KEY'})`));
+  const loopback = ['127.0.0.1', '::1', 'localhost'].includes(host);
+  if (!loopback && !PASSWORD && process.env.ALLOW_OPEN !== '1') {
+    console.error('Refusing to listen on ' + host + ' without APP_PASSWORD (anyone could use your CPU and API key). Set APP_PASSWORD, or ALLOW_OPEN=1 to override.');
+    process.exit(1);
+  }
+  app.listen(port, host, () => console.log(`Chess Coach on http://${host}:${port}  (AI coach: ${coach.hasClaude() ? 'on' : 'off – set ANTHROPIC_API_KEY'}, password: ${PASSWORD ? 'on' : 'off'}${ALLOWED.length ? ', users: ' + ALLOWED.join(',') : ''})`));
 }
 module.exports = { app, pool };

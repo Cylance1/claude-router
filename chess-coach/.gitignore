@@ -3,3 +3,5 @@ data/cache/
 data/analyses/
 data/progress.json
 data/puzzles.json
+.share-password
+.env

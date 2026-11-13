@@ -121,7 +121,7 @@ const CLS = { best: 'Best', excellent: 'Excellent', good: 'Good', inaccuracy: 'I
 function renderReview() {
   const box = el('tab-review');
   const a = S.analysis;
-  if (!a) { box.innerHTML = `<div class="card"><h2>Game review</h2><p class="muted">Pick a game from the Games tab to get a move-by-move review.</p><button class="primary" onclick="document.querySelector('[data-tab=games]').click()">Choose a game</button></div>`; return; }
+  if (!a) { box.innerHTML = `<div class="card"><h2>Game review</h2><p class="muted">Pick a game from the Games tab to get a move-by-move review.</p><button class="primary" id="pickgame">Choose a game</button></div>`; el('pickgame').onclick = () => showTab('games'); return; }
   const g = a.game; const sm = a.summary;
   box.innerHTML = `<div class="layout"><div>
       <div class="boardwrap"><div class="evalbar" id="ebar"><i id="efill"></i></div><div id="rb" style="flex:1"></div></div>
@@ -173,7 +173,7 @@ function showPly(k) {
   rmode = 'view'; rboard.interactive = false;
   S.ply = k;
   document.querySelectorAll('#mlist button').forEach((b) => b.classList.toggle('on', +b.dataset.ply === k));
-  const cur = $('#mlist button.on'); if (cur) cur.scrollIntoView({ block: 'nearest' });
+  const cur = $('#mlist button.on'); if (cur) { const ml = el('mlist'); ml.scrollTop = cur.offsetTop - ml.clientHeight / 2; } // scroll the list only, never the page
   const n = a.evalCurve.length; const gc = el('gcur'); if (gc) { gc.setAttribute('x1', (k / Math.max(1, n - 1)) * 400); gc.setAttribute('x2', (k / Math.max(1, n - 1)) * 400); }
   const coach = el('coach');
   if (k === 0) { rboard.load(a.startFen); setEval(a.evalCurve[0]); coach.innerHTML = `<h3>Game start</h3><p class="muted">Use ▶, click a move, or jump to <b>Next mistake</b>. Red dots on the graph are your mistakes.</p>`; return; }
@@ -294,7 +294,7 @@ async function startSession(qs, label) {
   const box = el('tab-train');
   box.innerHTML = '<div class="card"><span class="spin"></span> Choosing puzzles for you…</div>';
   const r = await api(`/api/puzzles?count=10&user=${encodeURIComponent(S.user || 'guest')}&${qs}`);
-  if (!r.puzzles.length) { box.innerHTML = `<div class="card"><h3>No puzzles yet for that</h3><p class="muted">${qs.includes('mine') ? 'Review some of your games first — your own mistakes become puzzles automatically.' : 'Try “Find more like this”.'}</p><button onclick="document.querySelector('[data-tab=train]').click()">Back</button></div>`; T = null; return; }
+  if (!r.puzzles.length) { box.innerHTML = `<div class="card"><h3>No puzzles yet for that</h3><p class="muted">${qs.includes('mine') ? 'Review some of your games first — your own mistakes become puzzles automatically.' : 'Try “Find more like this”.'}</p><button id="tback">Back</button></div>`; el('tback').onclick = renderTrainMenu; T = null; return; }
   T = { active: true, label, list: r.puzzles, i: 0, results: [], focus: r.themes };
   renderPuzzleUI();
   loadPuzzle();
@@ -477,6 +477,7 @@ async function renderProfile() {
 (async function boot() {
   S.cfg = await api('/api/config').catch(() => ({}));
   renderWho();
+  if (!S.user && S.cfg.defaultUser) S.user = S.cfg.defaultUser;
   if (S.user) connect(S.user); else renderGames();
 })();
 

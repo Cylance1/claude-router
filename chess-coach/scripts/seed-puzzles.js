@@ -10,7 +10,7 @@ const P = require('../src/puzzles');
 const OUT = path.join(__dirname, '..', 'data', 'seed-puzzles.json');
 const target = +process.argv[2] || 14;
 const maxPlayers = +process.argv[3] || 60;
-const THEMES = ['hangingPiece', 'fork', 'pin', 'skewer', 'discoveredAttack', 'mate', 'backRankMate', 'sacrifice', 'winsMaterial', 'promotion', 'endgame', 'positional'];
+const THEMES = (process.env.SEED_THEMES || 'hangingPiece,fork,pin,skewer,discoveredAttack,mate,backRankMate,sacrifice,winsMaterial,promotion,endgame').split(',');
 
 (async () => {
   const res = await fetch('https://api.chess.com/pub/club/chess-com-developer-community/members', { headers: { 'User-Agent': 'ChessCoach/0.1' } });
@@ -36,7 +36,7 @@ const THEMES = ['hangingPiece', 'fork', 'pin', 'skewer', 'discoveredAttack', 'ma
         f.owner = null; f.yourMove = null; f.source = { ...f.source, white: undefined, black: undefined, game: f.source.game };
         if (out.has(f.id)) continue;
         // keep the library balanced: don't over-collect common themes
-        if ((have[f.theme] || 0) >= target * 2 && f.theme !== 'positional') continue;
+        if ((have[f.theme] || 0) >= target * 2 || (f.theme === 'positional' && (have.positional || 0) >= target)) continue;
         out.set(f.id, f); for (const t of f.themes) have[t] = (have[t] || 0) + 1;
       }
       fs.writeFileSync(OUT, JSON.stringify([...out.values()]));

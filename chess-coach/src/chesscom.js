@@ -64,7 +64,7 @@ function normalize(g, user) {
     me: { username: mine.username, rating: mine.rating }, opponent: { username: theirs.username, rating: theirs.rating },
     white: { username: w.username, rating: w.rating }, black: { username: b.username, rating: b.rating },
     accuracy: g.accuracies ? g.accuracies[myColor === 'w' ? 'white' : 'black'] : null,
-    opening: opening.replace(/\s\d.*$/, '').slice(0, 60),
+    opening: opening.replace(/\s\d.*$/, '').replace(/\s(with|and|vs|accepted|declined)$/i, '').slice(0, 60),
   };
 }
 

@@ -21,10 +21,12 @@ test('theme detector: free piece beats incidental pin', () => {
   const r = T.analyzeLine('4k3/8/8/3q4/8/8/8/3RK3 w - - 0 1', ['d1d5']);
   assert.strictEqual(r.primary, 'hangingPiece');
 });
-test('theme detector: absolute pin', () => {
-  // Bg5 pins the knight on f6 to the queen on d8 -> relative pin; Bb5 pins c6 knight to e8 king (d7 empty)
-  const r = T.analyzeLine('r1bqkbnr/ppp2ppp/2n5/1B1pp3/4P3/5N2/PPPP1PPP/RNBQK2R w KQkq - 0 4', ['b5c6', 'b7c6', 'f3e5']);
-  assert.ok(r.themes.length > 0);
+test('theme detector: pin only counts when the pinned piece is won', () => {
+  const win = T.analyzeLine('4k3/8/2n5/8/8/8/8/4KB2 w - - 0 1', ['f1b5', 'e8d8', 'b5c6']);
+  assert.ok(win.themes.includes('pin'), JSON.stringify(win.themes));
+  // same pattern, but nothing is won afterwards -> not a pin lesson
+  const idle = T.analyzeLine('4k3/8/2n5/8/8/8/8/4KB2 w - - 0 1', ['f1b5', 'e8d8', 'e1e2']);
+  assert.ok(!idle.themes.includes('pin'), JSON.stringify(idle.themes));
 });
 test('move classification thresholds', () => {
   assert.strictEqual(classify(0.2, false), 'best');

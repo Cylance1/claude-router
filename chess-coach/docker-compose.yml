@@ -1,0 +1,14 @@
+# docker compose up -d   (set the values in a .env file next to this one)
+services:
+  coach:
+    build: .
+    restart: unless-stopped
+    ports: ["3000:3000"]
+    environment:
+      APP_PASSWORD: ${APP_PASSWORD:?set APP_PASSWORD in .env}
+      ALLOWED_USERS: ${ALLOWED_USERS:-becominglegendary}
+      DEFAULT_USER: ${DEFAULT_USER:-becominglegendary}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+    volumes: ["coach-data:/app/data"]
+volumes:
+  coach-data:

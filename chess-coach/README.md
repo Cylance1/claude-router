@@ -17,6 +17,39 @@ ANTHROPIC_API_KEY=sk-ant-... npm start   # optional: Claude writes the explanati
 
 Without an API key the app still works end to end: explanations are generated from the engine's facts by a rule-based coach. With a key, Claude rewrites those same verified facts into a personal explanation (it is told not to invent moves), and the review screen gets a chat box. Model: `COACH_MODEL` (default `claude-sonnet-5-5`).
 
+## Reach it from anywhere
+
+The app is a normal Node server, so it can live anywhere. It is **locked down by default**: it only listens on `127.0.0.1`, and it refuses to listen on a public address unless `APP_PASSWORD` is set.
+
+| Setting | What it does |
+|---|---|
+| `APP_PASSWORD` | Required for any public address. Browser asks for it (any username). 8 wrong tries from one IP locks it for 10 min. |
+| `ALLOWED_USERS` | Comma-separated chess.com usernames that may be analysed (others get 403). Stops strangers burning your CPU / API key. |
+| `DEFAULT_USER` | Pre-selects and auto-connects this account. |
+| `MAX_JOBS` | Concurrent analyses (default 2). Extra requests get a friendly "busy" message. |
+| `HOST`, `PORT` | Bind address (default `127.0.0.1:3000`). |
+
+**A. Your own computer + a private link (simplest).** Install [`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/) (or Tailscale), then:
+
+```
+./scripts/share.sh        # starts the app, prints the password and an https://….trycloudflare.com URL
+```
+
+The URL works from any device while the script runs (the quick-tunnel URL changes each run). For a stable address use a named Cloudflare tunnel, or `USE_TAILSCALE=1 ./scripts/share.sh` to make it reachable only from your own devices.
+
+**B. Always-on with Docker** (home server, VPS, Raspberry Pi 5):
+
+```
+printf 'APP_PASSWORD=choose-a-long-password\nANTHROPIC_API_KEY=\n' > .env
+docker compose up -d      # data (analyses, puzzles, progress) lives in a volume
+```
+
+Put it behind HTTPS (Caddy, Cloudflare Tunnel or Tailscale) — HTTP Basic auth sends the password with every request, so never expose it over plain `http://` on the open internet.
+
+**C. Fly.io** — `fly.toml` is included; the comments at the top list the 4 commands. It uses a 2-vCPU shared machine; reviews run on the CPU, so a tiny instance is slow.
+
+> Docker/Fly files were written but not build-tested in the environment this was developed in (no Docker daemon). The server, password, allow-list and headers *were* tested directly.
+
 ## Use it from Claude (MCP connector)
 
 The same engine is exposed as an MCP server, so Claude Desktop / Claude Code can read your games and coach you in conversation:
@@ -47,6 +80,7 @@ Tools: `list_games`, `review_game`, `weakness_profile`, `get_puzzles`.
 - Theme labels are heuristics on top of the engine's line; the *move evaluation* is the engine's, the *name of the idea* occasionally isn't what a human coach would say.
 - Review depth is 14 (≈10–20 s per game). Deeper = slower, slightly more accurate.
 - Only standard chess (no variants). Games are matched to your account by username.
+- Piece graphics are an original hand-drawn SVG set (`public/js/pieces.js`).
 - Everything is stored locally in `data/` (analyses, puzzles, progress); nothing is sent anywhere except requests to chess.com and, if you set a key, the position facts to the Anthropic API.
 
 ## Tests

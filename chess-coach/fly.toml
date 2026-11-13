@@ -1,0 +1,35 @@
+# Deploy to Fly.io:  fly launch --no-deploy --copy-config && fly volumes create coach_data --size 1
+#                    fly secrets set APP_PASSWORD=... ALLOWED_USERS=becominglegendary DEFAULT_USER=becominglegendary [ANTHROPIC_API_KEY=...]
+#                    fly deploy
+app = "chess-coach"
+primary_region = "iad"
+
+[build]
+
+[env]
+  HOST = "0.0.0.0"
+  PORT = "3000"
+
+[mounts]
+  source = "coach_data"
+  destination = "/app/data"
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 0
+  [http_service.concurrency]
+    type = "requests"
+    soft_limit = 20
+
+[[vm]]
+  size = "shared-cpu-2x"
+  memory = "1gb"
+
+[[http_service.checks]]
+  method = "GET"
+  path = "/healthz"
+  interval = "30s"
+  timeout = "5s"
