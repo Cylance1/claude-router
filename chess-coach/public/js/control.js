@@ -24,11 +24,18 @@
       for (const sq of Object.keys(controlled(fen, color))) m |= 1n << BigInt(FILES.indexOf(sq[0]) + 8 * (+sq[1] - 1));
       return m.toString(16).padStart(16, '0');
     }
-    const inRegion = (sq, region) => region === 'both' || (region === 'queen' ? FILES.indexOf(sq[0]) < 4 : FILES.indexOf(sq[0]) >= 4);
+    // Regions are seen from the side being read: "near" is that side's own half of the board, "far" is the opponent's half.
+    //   White: near = ranks 1-4, far = ranks 5-8.   Black: near = ranks 8-5, far = ranks 4-1.
+    const inRegion = (sq, region, color = 'w') => {
+      if (region === 'both') return true;
+      const lowHalf = +sq[1] <= 4;
+      const near = color === 'w' ? lowHalf : !lowHalf;
+      return region === 'near' ? near : !near;
+    };
     /** Count of controlled squares in a region, from a hex mask. */
-    function count(hex, region = 'both') {
+    function count(hex, region = 'both', color = 'w') {
       const m = BigInt('0x' + hex); let n = 0;
-      for (let f = 0; f < 8; f++) if (inRegion(FILES[f] + '1', region)) for (let r = 0; r < 8; r++) if ((m >> BigInt(f + 8 * r)) & 1n) n++;
+      for (let f = 0; f < 8; f++) for (let r = 0; r < 8; r++) if (inRegion(FILES[f] + (r + 1), region, color) && ((m >> BigInt(f + 8 * r)) & 1n)) n++;
       return n;
     }
     const names = (list) => list.map((a) => `${NAME[a.type]} on ${a.square}`).join(' and ');

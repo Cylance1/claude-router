@@ -23,6 +23,27 @@ function record(p, solved, clean) {
   save();
 }
 
+// ---- countdown: a 3-2-1 screen before every challenge. It covers the board (so the position is not previewed) and says which side to play ----
+const cdSecs = () => (mem.countdown === 0 || mem.countdown === 5 ? mem.countdown : 3);
+let cdCancel = null;
+function cancelCountdown() { if (cdCancel) cdCancel(false); }
+function runCountdown({ title, sub, color }) {
+  cancelCountdown();
+  const secs = cdSecs(); const host = $('pb');
+  if (!secs || !host) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    let left = secs; let iv = null;
+    const ov = document.createElement('div'); ov.className = 'cd'; ov.id = 'cd'; ov.setAttribute('role', 'status'); ov.setAttribute('aria-live', 'polite');
+    const finish = (ok) => { clearInterval(iv); ov.remove(); if (cdCancel === finish) cdCancel = null; resolve(ok); };
+    const paint = () => {
+      ov.innerHTML = `<div class="cdbox">${color ? `<div class="chip ${color}"><span class="dotc"></span>${color === 'w' ? 'WHITE' : 'BLACK'}</div>` : ''}<div class="cdt">${esc(title)}</div><div class="cdn" aria-label="${left} seconds">${left}</div><div class="cds">${esc(sub)}</div><button class="ghost" id="cdskip">Skip</button></div>`;
+      const sk = ov.querySelector('#cdskip'); if (sk) sk.onclick = () => finish(true);
+    };
+    paint(); host.appendChild(ov); cdCancel = finish;
+    iv = setInterval(() => { left--; if (left <= 0) finish(true); else paint(); }, 1000);
+  });
+}
+
 // ---- selection ----
 const PUZ = DATA.puzzles;
 const FILTERS = {
@@ -62,7 +83,7 @@ applyPieces();
 let board = null; let S = null; let tab = 'drill';
 document.querySelectorAll('nav button').forEach((b) => { b.onclick = () => show(b.dataset.tab); });
 function show(t) {
-  tab = t; stopTimer();
+  tab = t; stopTimer(); cancelCountdown();
   document.querySelectorAll('nav button').forEach((b) => b.classList.toggle('on', b.dataset.tab === t));
   ({ drill: renderMenu, weak: renderWeak, progress: renderProgress })[t]();
 }
@@ -118,9 +139,14 @@ function renderMenu() {
       <p class="muted small" style="margin-bottom:8px">Your fast moves are not your problem: in balanced middlegames you blunder about as often at 3 seconds as at 15. The goal is a safety scan that runs on its own, so the fast move is also the safe one.</p>
       <div class="row"><button class="primary" id="m-scan">Safety scan</button><span class="small muted">Scan finds</span><span class="seg" id="smode">${[['undefended', 'Undefended'], ['hanging', 'Winnable']].map(([v, l]) => `<button data-s="${v}" class="${scanMode() === v ? 'on' : ''}">${l}</button>`).join('')}</span><span class="small muted">Puzzle timer</span>
       <span class="seg" id="seg">${[[0, 'Off'], [10, '10 s'], [5, '5 s']].map(([v, l]) => `<button data-t="${v}" class="${(mem.timer || 0) === v ? 'on' : ''}">${l}</button>`).join('')}</span></div></div>
-    <div class="card"><h3>Square control: White</h3>
-      <p class="muted small" style="margin-bottom:8px">A position appears. Tap every square White controls, meaning a White piece attacks it (squares holding a White piece count when another White piece defends them; pins are ignored). Pawns hit the two squares diagonally ahead, knights jump, bishops, rooks and queens stop at the first piece in their way.</p>
-      <div class="row"><button class="primary" id="m-ctrl">Start</button><span class="small muted">Where</span><span class="seg" id="creg">${[['both', 'Both sides'], ['queen', 'Queenside'], ['king', 'Kingside']].map(([v, l]) => `<button data-r="${v}" class="${region() === v ? 'on' : ''}">${l}</button>`).join('')}</span></div></div>
+    <div class="card"><h3>Square control</h3>
+      <p class="muted small" style="margin-bottom:8px">A countdown tells you which colour to read, then a position appears with that colour at the bottom. Tap every square that colour controls, meaning one of its pieces attacks it (squares holding its own piece count when another of its pieces defends them; pins are ignored). Pawns hit the two squares diagonally ahead, knights jump, bishops, rooks and queens stop at the first piece in their way. Reading Black from Black's side is the same skill as reading White.</p>
+      <div class="row"><button class="primary" id="m-ctrl">Start</button>
+        <span class="small muted">Colour</span><span class="seg" id="cside">${[['mixed', 'Both'], ['w', 'White'], ['b', 'Black']].map(([v, l]) => `<button data-c="${v}" class="${sidePref() === v ? 'on' : ''}">${l}</button>`).join('')}</span>
+        <span class="small muted">Squares</span><span class="seg" id="creg">${[['both', 'Whole board'], ['near', 'Near half'], ['far', 'Far half']].map(([v, l]) => `<button data-r="${v}" class="${region() === v ? 'on' : ''}">${l}</button>`).join('')}</span></div></div>
+    <div class="card"><h3>Countdown before each challenge</h3>
+      <p class="muted small" style="margin-bottom:8px">Every puzzle, scan and square-control position starts with a 3-2-1 screen that hides the board and tells you which side you are playing. You can skip it with one tap.</p>
+      <div class="row"><span class="small muted">Length</span><span class="seg" id="cdseg">${[[0, 'Off'], [3, '3 s'], [5, '5 s']].map(([v, l]) => `<button data-d="${v}" class="${cdSecs() === v ? 'on' : ''}">${l}</button>`).join('')}</span></div></div>
     <div class="modes">
       <button class="mode" data-m="mine"><b>Your own mistakes</b><span>${count(FILTERS.mine)} positions from your games</span></button>
       <button class="mode" data-m="exchanges"><b>Material &amp; exchanges</b><span>Count the trade to the end · ${count(FILTERS.exchanges)}</span></button>
@@ -135,6 +161,8 @@ function renderMenu() {
   $('m-scan').onclick = startScan;
   $('m-ctrl').onclick = startCtrl;
   $('creg').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; mem.ctrlRegion = b.dataset.r; save(); renderMenu(); };
+  $('cside').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; mem.ctrlSide = b.dataset.c; save(); renderMenu(); };
+  $('cdseg').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; mem.countdown = +b.dataset.d; save(); renderMenu(); };
   $('m-ow').onclick = () => start('openW', 'Your openings as White'); $('m-ob').onclick = () => start('openB', 'Your openings as Black'); $('m-later').onclick = () => start('later', 'Your middlegame mistakes');
   bindGoal(renderMenu);
   $('smode').onclick = (e) => { const b = e.target.closest('button'); if (!b) return; mem.scanMode = b.dataset.s; save(); renderMenu(); };
@@ -171,6 +199,8 @@ async function load1() {
     : p.yourMove ? `From <b>your game</b>: your opponent had just erred and you played <b>${esc(p.yourMove)}</b>. Was there better?` : 'Your opponent just made a mistake. Punish it.';
   $('info').innerHTML = `<div class="msg"><b>${sideName(p.side)} to move.</b> Find the best move.<div class="small muted">${why}</div>
     <div style="margin-top:6px"><span class="tag">Puzzle ${S.i + 1} of ${S.list.length}</span><span class="tag">${'★'.repeat(p.difficulty)}${'☆'.repeat(5 - p.difficulty)}</span>${p.solution.length > 1 ? `<span class="tag">${Math.ceil(p.solution.length / 2)}-move idea</span>` : ''}</div></div>`;
+  const go = await runCountdown({ title: `Puzzle ${S.i + 1} of ${S.list.length}`, color: p.side, sub: `${sideName(p.side)} to move. Find the best move.` });
+  if (!go || !S || S.cur !== cur) return;
   if (p.setup) { await sleep(450); if (S && S.cur !== cur) return; await board.play(p.setup.move); if (!S || S.cur !== cur) return; }
   board.locked = false; buttons(); startTimer();
 }
@@ -249,7 +279,7 @@ function giveUp(why) {
 }
 function next() { if (!S || !S.cur || !S.cur.done) return; stopTimer(); S.i++; if (S.i >= S.list.length) finish(); else load1(); }
 function finish() {
-  stopTimer(); replayToken++;
+  stopTimer(); replayToken++; cancelCountdown();
   if (!S) { renderMenu(); return; }
   const done = S.results.map((r, i) => [r, S.list[i]]).filter(([r]) => r !== undefined);
   const ok = done.filter(([r]) => r).length;
@@ -299,12 +329,16 @@ function renderScan() {
   $('quit').onclick = scanSummary; dotsScan();
 }
 function dotsScan() { $('dots').innerHTML = Array.from({ length: S.total }, (_, i) => `<i class="${S.score[i] === undefined ? '' : S.score[i] ? 'ok' : 'no'} ${i === S.i ? 'cur' : ''}"></i>`).join(''); }
-function scanRound() {
+async function scanRound() {
   if (S.i >= S.total) return scanSummary();
   const r = S.rounds[S.i] || (S.rounds[S.i] = nextScanRound(Math.random() < 0.25) || nextScanRound(false));
   if (!r) return scanSummary();
-  S.cur = { r, picks: new Set(), t0: Date.now(), done: false }; dotsScan(); stopTimer();
-  board.load(r.fen); board.flip(r.side); board.interactive = true; board.locked = false; board.setMarks({}); board.setArrows([]);
+  const cur = S.cur = { r, picks: new Set(), t0: Date.now(), done: false }; dotsScan(); stopTimer();
+  board.load(r.fen); board.flip(r.side); board.interactive = false; board.locked = true; board.onSquare = null; board.setMarks({}); board.setArrows([]);
+  $('info').innerHTML = ''; $('feed').innerHTML = ''; $('btns').innerHTML = '';
+  const go = await runCountdown({ title: `Safety scan ${S.i + 1} of ${S.total}`, sub: scanMode() === 'hanging' ? 'Find the pieces that can be won right now. Both colours count.' : 'Find the pieces nothing defends. Both colours count.' });
+  if (!go || !S || S.cur !== cur) return;
+  cur.t0 = Date.now(); board.interactive = true; board.locked = false; // the clock starts when the position appears
   board.onSquare = (sq) => {
     if (S.cur.done) return; const pc = board.chess.get(sq);
     if (!pc || !TAP.includes(pc.type)) return; // only knights, bishops, rooks and queens count
@@ -345,7 +379,7 @@ function scanCheck() {
   $('next').onclick = (e) => { if (e.currentTarget.disabled) return; e.currentTarget.disabled = true; S.i++; if (S.i >= S.total) scanSummary(); else scanRound(); };
 }
 function scanSummary() {
-  stopTimer(); if (board) board.onSquare = null;
+  stopTimer(); cancelCountdown(); if (board) board.onSquare = null;
   const done = S.score.filter((x) => x !== undefined); const ok = done.filter(Boolean).length; S = null;
   view().innerHTML = `<div class="card"><h2>Scan complete</h2><div class="stats" style="margin-bottom:10px"><div class="stat"><b>${ok}/${done.length}</b><span>positions read perfectly</span></div></div>
     <p class="muted">The aim is to see the answer before you can explain it. Keep the 10 second limit and do a few rounds a day; once it feels automatic, try the other mode.</p>
@@ -355,21 +389,33 @@ function scanSummary() {
 
 // ---- square control: tap every square White controls (board-vision trainer). Answers come from public/js/control.js ----
 const CTRL = makeControl(Chess);
-const region = () => (mem.ctrlRegion === 'queen' || mem.ctrlRegion === 'king' ? mem.ctrlRegion : 'both');
-const REGION_TEXT = { both: 'on both sides of the board', queen: 'on the queenside (a–d files)', king: 'on the kingside (e–h files)' };
+const region = () => (mem.ctrlRegion === 'near' || mem.ctrlRegion === 'far' ? mem.ctrlRegion : 'both');
+const sidePref = () => (mem.ctrlSide === 'w' || mem.ctrlSide === 'b' ? mem.ctrlSide : 'mixed');
+const SIDE_NAME = { w: 'White', b: 'Black' };
+// "near" / "far" are seen from the side being read: its own half, or the opponent's half
+const regionText = (color) => ({
+  both: 'across the whole board',
+  near: color === 'w' ? "on White's own half (ranks 1–4)" : "on Black's own half (ranks 8–5)",
+  far: color === 'w' ? "on the far half, the opponent's side (ranks 5–8)" : "on the far half, the opponent's side (ranks 4–1)",
+}[region()]);
 let ctrlPool = null;
 function ctrlRounds(n = 6) {
-  if (!ctrlPool) ctrlPool = (DATA.scan || []).filter((x) => x.c).map((x) => ({ fen: `${x.f} - - 0 1`, c: x.c, n: 0 }));
+  if (!ctrlPool) ctrlPool = (DATA.scan || []).filter((x) => x.c && x.cb).map((x) => ({ fen: `${x.f} - - 0 1`, m: { w: x.c, b: x.cb } }));
   const [lo, hi] = region() === 'both' ? [14, 28] : [6, 16]; // enough squares to be a real test, few enough to tap in one go
-  const fits = (r) => { r.n = CTRL.count(r.c, region()); return r.n >= lo && r.n <= hi; };
-  const seen = new Set(mem.ctrlSeen || []);
-  let ok = ctrlPool.filter((r) => fits(r) && !seen.has(r.fen));
-  if (ok.length < n) { mem.ctrlSeen = []; ok = ctrlPool.filter(fits); }
-  const picked = [];
-  while (picked.length < n && ok.length) picked.push(ok.splice(Math.floor(Math.random() * ok.length), 1)[0]);
-  picked.sort((a, b) => a.n - b.n); // easier positions (fewer squares) first
-  mem.ctrlSeen = [...(mem.ctrlSeen || []), ...picked.map((r) => r.fen)].slice(-300); save();
-  return picked;
+  // which colour each round is about: the chosen side, or White and Black alternating from a random start
+  const first = Math.random() < 0.5 ? 'w' : 'b'; const second = first === 'w' ? 'b' : 'w';
+  const colors = Array.from({ length: n }, (_, i) => (sidePref() === 'mixed' ? (i % 2 ? second : first) : sidePref()));
+  const seen = new Set(mem.ctrlSeen || []); const used = new Set(); const rounds = [];
+  for (const color of colors) {
+    const count = (r) => CTRL.count(r.m[color], region(), color);
+    let ok = ctrlPool.filter((r) => !used.has(r.fen) && !seen.has(r.fen + color) && count(r) >= lo && count(r) <= hi);
+    if (!ok.length) ok = ctrlPool.filter((r) => !used.has(r.fen) && count(r) >= lo && count(r) <= hi);
+    if (!ok.length) continue;
+    const r = ok[Math.floor(Math.random() * ok.length)]; used.add(r.fen); rounds.push({ fen: r.fen, color, n: count(r) });
+  }
+  rounds.sort((a, b) => a.n - b.n); // easier positions (fewer squares) first
+  mem.ctrlSeen = [...(mem.ctrlSeen || []), ...rounds.map((r) => r.fen + r.color)].slice(-400); save();
+  return rounds;
 }
 function startCtrl() {
   const rounds = ctrlRounds(6);
@@ -377,27 +423,31 @@ function startCtrl() {
   S = { ctrl: true, active: true, rounds, total: rounds.length, i: 0, score: [], label: 'Square control' }; renderCtrl(); ctrlRound();
 }
 function renderCtrl() {
-  view().innerHTML = `<div class="split"><div><div id="pb"></div></div><div><div class="row" style="justify-content:space-between"><h2 style="margin:0">Square control: White</h2><button class="ghost small" id="quit">End</button></div>
+  view().innerHTML = `<div class="split"><div><div id="pb"></div></div><div><div class="row" style="justify-content:space-between"><h2 style="margin:0">Square control</h2><button class="ghost small" id="quit">End</button></div>
     <div class="dots" id="dots"></div><div id="info"></div><div id="feed"></div><div class="tools" id="btns"></div></div></div>`;
   board = new Board($('pb'), {});
   $('quit').onclick = ctrlSummary; dotsCtrl();
 }
 function dotsCtrl() { $('dots').innerHTML = Array.from({ length: S.total }, (_, i) => `<i class="${S.score[i] === undefined ? '' : S.score[i] ? 'ok' : 'no'} ${i === S.i ? 'cur' : ''}"></i>`).join(''); }
-function ctrlRound() {
+async function ctrlRound() {
   if (S.i >= S.total) return ctrlSummary();
-  const r = S.rounds[S.i]; stopTimer();
-  const truth = CTRL.controlled(r.fen, 'w'); const need = Object.keys(truth).filter((q) => CTRL.inRegion(q, region())).length;
-  S.cur = { r, truth, picks: new Set(), t0: Date.now(), done: false };
-  dotsCtrl(); board.load(r.fen); board.flip('w'); board.interactive = true; board.locked = false; board.setMarks({}); board.setArrows([]);
+  const r = S.rounds[S.i]; stopTimer(); const color = r.color; const W = SIDE_NAME[color];
+  const truth = CTRL.controlled(r.fen, color); const need = Object.keys(truth).filter((q) => CTRL.inRegion(q, region(), color)).length;
+  const cur = S.cur = { r, color, truth, picks: new Set(), t0: Date.now(), done: false };
+  dotsCtrl(); board.load(r.fen); board.flip(color); board.interactive = false; board.locked = true; board.onSquare = null; board.setMarks({}); board.setArrows([]);
+  $('info').innerHTML = ''; $('feed').innerHTML = ''; $('btns').innerHTML = '';
+  const go = await runCountdown({ title: `Square control ${S.i + 1} of ${S.total}`, color, sub: `Find the squares ${W.toUpperCase()} controls ${regionText(color)}.` });
+  if (!go || !S || S.cur !== cur) return;
+  cur.t0 = Date.now(); board.interactive = true; board.locked = false; // the clock starts when the position appears
   board.onSquare = (sq) => {
     if (S.cur.done) return;
-    if (!CTRL.inRegion(sq, region())) { $('feed').innerHTML = `<div class="msg">This round is only ${REGION_TEXT[region()]}.</div>`; return; }
+    if (!CTRL.inRegion(sq, region(), color)) { $('feed').innerHTML = `<div class="msg">This round is only ${regionText(color)}.</div>`; return; }
     $('feed').innerHTML = '';
     if (S.cur.picks.has(sq)) S.cur.picks.delete(sq); else S.cur.picks.add(sq);
     board.setMarks(Object.fromEntries([...S.cur.picks].map((q) => [q, 'sel'])));
     $('cnt').textContent = S.cur.picks.size;
   };
-  $('info').innerHTML = `<div class="msg"><b>Tap every square White controls ${REGION_TEXT[region()]}.</b> That is every square a White piece attacks, including squares with a White piece on them that another White piece defends. White is at the bottom.
+  $('info').innerHTML = `<div class="msg"><div class="chip ${color}" style="font-size:.85rem;padding:2px 12px;gap:6px"><span class="dotc" style="width:.8em;height:.8em"></span>${W.toUpperCase()}</div> <b>Tap every square ${W} controls ${regionText(color)}.</b> That is every square a ${W} piece attacks, including squares holding a ${W} piece that another ${W} piece defends. ${W} is at the bottom.
     <div class="small muted" style="margin-top:4px">Position ${S.i + 1} of ${S.total} · ${need} squares to find · selected <b id="cnt">0</b> · <span id="el">0</span> s</div></div>`;
   $('feed').innerHTML = ''; $('btns').innerHTML = '<button class="primary" id="done">Done</button><button id="clr">Clear</button>';
   $('done').onclick = () => { if (Date.now() - S.cur.t0 > 400) ctrlCheck(); }; // a stray double-click on the previous Next must not submit
@@ -405,12 +455,13 @@ function ctrlRound() {
   tick = setInterval(() => { const e = $('el'); if (!e) return stopTimer(); e.textContent = Math.round((Date.now() - S.cur.t0) / 1000); }, 500);
 }
 // why a tapped square is NOT controlled, in plain words
-function whyNot(fen, sq) {
-  const c = new Chess(fen); const f = 'abcdefgh'.indexOf(sq[0]); const rk = +sq[1];
-  const behind = f >= 0 && rk > 1 ? c.get(sq[0] + (rk - 1)) : null;
-  if (behind && behind.type === 'p' && behind.color === 'w') return `the pawn on ${sq[0]}${rk - 1} attacks the squares diagonally ahead, not the one straight in front of it`;
+function whyNot(fen, sq, color) {
+  const c = new Chess(fen); const f = 'abcdefgh'.indexOf(sq[0]); const rk = +sq[1]; const W = SIDE_NAME[color]; const dir = color === 'w' ? 1 : -1;
+  const behindRk = rk - dir; // the square a pawn of this colour would stand on to be directly "behind" the tapped square
+  const behind = behindRk >= 1 && behindRk <= 8 ? c.get(sq[0] + behindRk) : null;
+  if (behind && behind.type === 'p' && behind.color === color) return `the pawn on ${sq[0]}${behindRk} attacks the squares diagonally ahead, not the one straight in front of it`;
   for (const row of c.board()) for (const p of row) {
-    if (!p || p.color !== 'w' || !'brq'.includes(p.type)) continue;
+    if (!p || p.color !== color || !'brq'.includes(p.type)) continue;
     const pf = 'abcdefgh'.indexOf(p.square[0]); const pr = +p.square[1]; const dx = f - pf; const dy = rk - pr;
     const line = (dx === 0 || dy === 0 || Math.abs(dx) === Math.abs(dy)) && (dx || dy);
     const okType = p.type === 'q' || (p.type === 'r' && (dx === 0 || dy === 0)) || (p.type === 'b' && Math.abs(dx) === Math.abs(dy));
@@ -422,12 +473,12 @@ function whyNot(fen, sq) {
     }
   }
   const occ = c.get(sq);
-  if (occ && occ.color === 'w') return `White's own ${{ p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' }[occ.type]} stands there and no other White piece defends it`;
-  return 'no White piece attacks it';
+  if (occ && occ.color === color) return `${W}'s own ${{ p: 'pawn', n: 'knight', b: 'bishop', r: 'rook', q: 'queen', k: 'king' }[occ.type]} stands there and no other ${W} piece defends it`;
+  return `no ${W} piece attacks it`;
 }
 function ctrlCheck() {
   const c = S.cur; if (c.done) return; c.done = true; stopTimer(); board.onSquare = null; board.interactive = false;
-  const ms = Date.now() - c.t0; const T = new Set(Object.keys(c.truth).filter((q) => CTRL.inRegion(q, region())));
+  const W = SIDE_NAME[c.color]; const ms = Date.now() - c.t0; const T = new Set(Object.keys(c.truth).filter((q) => CTRL.inRegion(q, region(), c.color)));
   const hits = [...c.picks].filter((q) => T.has(q)); const falses = [...c.picks].filter((q) => !T.has(q)); const missed = [...T].filter((q) => !c.picks.has(q));
   const perfect = !falses.length && !missed.length; S.score[S.i] = perfect; dotsCtrl();
   mem.ctrl.rounds++; mem.ctrl.hits += hits.length; mem.ctrl.missed += missed.length; mem.ctrl.falses += falses.length; mem.ctrl.ms += ms; save();
@@ -435,16 +486,16 @@ function ctrlCheck() {
   const arrows = []; missed.slice(0, 5).forEach((q) => c.truth[q].forEach((a) => arrows.push({ from: a.square, to: q, cls: 'good' }))); board.setArrows(arrows.slice(0, 10));
   const sec = (title, list, line) => (list.length ? `<div class="small" style="margin-top:6px"><b>${title}</b></div>${list.slice(0, 6).map((q) => `<div class="small">${esc(line(q))}</div>`).join('')}${list.length > 6 ? `<div class="small muted">…and ${list.length - 6} more</div>` : ''}` : '');
   $('feed').innerHTML = `<div class="msg ${perfect ? 'ok' : 'no'}"><b>${perfect ? 'Every square, nothing extra' : `Found ${hits.length} of ${T.size}${falses.length ? `, ${falses.length} not controlled` : ''}`}</b> in ${(ms / 1000).toFixed(1)} s.
-    ${sec('Missed', missed, (q) => `${q}: attacked by the ${CTRL.names(c.truth[q])}`)}${sec('You tapped these, but White does not control them', falses, (q) => `${q}: ${whyNot(c.r.fen, q)}`)}
+    ${sec('Missed', missed, (q) => `${q}: attacked by the ${CTRL.names(c.truth[q])}`)}${sec(`You tapped these, but ${W} does not control them`, falses, (q) => `${q}: ${whyNot(c.r.fen, q, c.color)}`)}
     <div class="legend" style="margin-top:8px"><span><b style="background:rgba(59,143,90,.7)"></b>correct</span><span><b style="background:rgba(200,55,45,.7)"></b>not controlled</span><span><b style="background:rgba(59,115,185,.7)"></b>missed</span><span>green arrows: who attacks a missed square</span></div></div>`;
   $('btns').innerHTML = `<button class="primary" id="next">${S.i + 1 >= S.total ? 'Finish' : 'Next position'}</button>`;
   $('next').onclick = (e) => { if (e.currentTarget.disabled) return; e.currentTarget.disabled = true; S.i++; if (S.i >= S.total) ctrlSummary(); else ctrlRound(); };
 }
 function ctrlSummary() {
-  stopTimer(); if (board) board.onSquare = null;
+  stopTimer(); cancelCountdown(); if (board) board.onSquare = null;
   const done = S.score.filter((x) => x !== undefined); const ok = done.filter(Boolean).length; S = null;
   view().innerHTML = `<div class="card"><h2>Square control complete</h2><div class="stats" style="margin-bottom:10px"><div class="stat"><b>${ok}/${done.length}</b><span>positions read perfectly</span></div></div>
-    <p class="muted">Aim for the whole board in under 30 seconds without hunting square by square: see each piece's lines first, then the pawn diagonals. Once both sides feel easy, mix the two wings.</p>
+    <p class="muted">Aim for the whole board in under 30 seconds without hunting square by square: see each piece's lines first, then the pawn diagonals. Reading Black from Black's side of the board is the same skill, so keep both colours in the mix. The far half, the opponent's side, is where most players slip.</p>
     <div class="row"><button class="primary" id="again">Another set</button><button id="menu">Back to menu</button></div></div>`;
   $('again').onclick = startCtrl; $('menu').onclick = renderMenu;
 }

@@ -44,12 +44,22 @@ test('control: the king covers its neighbours', () => {
   const s = sq('4k3/8/8/8/8/8/8/4K3 w - - 0 1');
   ['d1', 'f1', 'd2', 'e2', 'f2'].forEach((x) => assert.ok(s.includes(x), x));
 });
-test('control: mask round-trips and counts by wing', () => {
+test('control: mask round-trips and splits into near and far halves', () => {
   const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
   const m = C.mask(fen); assert.strictEqual(m.length, 16);
-  const both = C.count(m, 'both'); const q = C.count(m, 'queen'); const k = C.count(m, 'king');
-  assert.strictEqual(both, q + k); assert.strictEqual(both, sq(fen).length);
-  assert.ok(q > 5 && k > 5);
+  const both = C.count(m, 'both'); const near = C.count(m, 'near', 'w'); const far = C.count(m, 'far', 'w');
+  assert.strictEqual(both, near + far); assert.strictEqual(both, sq(fen).length);
+  assert.strictEqual(far, 0); // White controls nothing past rank 3 at the start, so the far half is empty
+  assert.strictEqual(near, 22); // all of ranks 2 and 3 (16) plus b1..g1 (6)
+});
+test('control: near/far are relative to the colour being read', () => {
+  assert.ok(C.inRegion('e2', 'near', 'w') && !C.inRegion('e2', 'far', 'w'));
+  assert.ok(C.inRegion('e7', 'near', 'b') && !C.inRegion('e7', 'far', 'b'));
+  assert.ok(C.inRegion('e7', 'far', 'w') && C.inRegion('e2', 'far', 'b'));
+  assert.ok(C.inRegion('d4', 'near', 'w') && C.inRegion('d5', 'far', 'w') && C.inRegion('d5', 'near', 'b') && C.inRegion('d4', 'far', 'b'));
+  // the same position seen from Black: its far half mirrors White's
+  const fen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
+  assert.strictEqual(C.count(C.mask(fen, 'b'), 'near', 'b'), 22); assert.strictEqual(C.count(C.mask(fen, 'b'), 'far', 'b'), 0);
 });
 test('control: Black can be asked too (same engine, other colour)', () => {
   const b = sq('rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1', 'b');
