@@ -181,6 +181,7 @@ body { margin: 0; overscroll-behavior: none; }
 .panel.tight .legend, .panel.tight .rv .rem { display: none; }
 .panel.tight .sec > div:nth-child(n+3) { display: none; }
 .ratingchip { min-height: 36px; }
+.panel .status .chip.w { color: #1b1b1b; } .panel .status .chip.b { color: #f2f2ee; } /* the status line's muted colour must not wash out the colour chip */
 /* short phones (about 640px tall and under): tighter rows */
 @media (max-height: 700px) {
   .wrow { padding: 5px 8px 5px 10px; } .wrow button { min-height: 36px; }
