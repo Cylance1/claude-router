@@ -33,9 +33,11 @@
       return region === 'near' ? near : !near;
     };
     /** Count of controlled squares in a region, from a hex mask. */
+    // Fast path with no BigInt: a region is always a set of whole ranks, and rank r is byte r of the mask (the last two hex digits are rank 1).
+    const popcnt8 = (x) => { x -= (x >> 1) & 0x55; x = (x & 0x33) + ((x >> 2) & 0x33); return (x + (x >> 4)) & 0x0f; };
     function count(hex, region = 'both', color = 'w') {
-      const m = BigInt('0x' + hex); let n = 0;
-      for (let f = 0; f < 8; f++) for (let r = 0; r < 8; r++) if (inRegion(FILES[f] + (r + 1), region, color) && ((m >> BigInt(f + 8 * r)) & 1n)) n++;
+      let n = 0;
+      for (let r = 0; r < 8; r++) if (inRegion('a' + (r + 1), region, color)) n += popcnt8(parseInt(hex.slice(14 - 2 * r, 16 - 2 * r), 16));
       return n;
     }
     const names = (list) => list.map((a) => `${NAME[a.type]} on ${a.square}`).join(' and ');
