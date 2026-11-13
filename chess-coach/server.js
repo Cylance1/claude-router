@@ -11,6 +11,7 @@ const P = require('./src/puzzles');
 const { buildProfile } = require('./src/profile');
 const library = require('./src/library');
 const { LESSONS } = require('./src/lessons');
+const { nearMiss } = require('./src/slip');
 const { THEME_LABEL } = require('./src/themes');
 
 const app = express();
@@ -146,6 +147,7 @@ app.post('/api/explain', wrap(async (req, res) => {
   const cached = a.explanations[ply];
   if (cached && (cached.source === 'claude' || !coach.hasClaude()) && !req.body.refresh) return res.json(cached);
   const ex = await coach.explainMove(m, a.game);
+  if (m.mine && m.winLoss >= 8) { try { ex.slip = await nearMiss(pool(), m); } catch (e) { /* optional */ } }
   if (ex.source === 'claude' || !coach.hasClaude()) { a.explanations[ply] = ex; store.saveAnalysis(a); }
   res.json(ex);
 }));

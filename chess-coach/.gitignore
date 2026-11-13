@@ -7,3 +7,4 @@ data/puzzles.json
 .env
 drill/data.json
 drill/index.html
+data/slips.json

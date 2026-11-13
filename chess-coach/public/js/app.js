@@ -230,8 +230,9 @@ async function coachMistake(m) {
     body = `<div class="sec"><div class="h">What happened</div>${md(s.happened)}</div><div class="sec"><div class="h">Why it's a problem</div>${md(s.why)}</div>
       <div class="sec better"><div class="h">The better move</div>${md(s.better)}</div><div class="sec remember"><div class="h">Remember</div>${md(s.takeaway)}</div>`;
   }
+  const slip = ex && ex.slip ? `<div class="pmsg"><b>Possible slip?</b> <b>${esc(ex.slip.san)}</b> (${ex.slip.kind === 'destination' ? 'the same piece, one square over' : 'the piece next to it'}) would have been ${esc(ex.slip.cls)}. If you meant ${esc(m.san)}, it was a chess error; if not, it was a mis-click, and that is a different thing to fix.</div>` : '';
   const chat = S.cfg.ai ? `<div class="chat"><input id="q" placeholder="Ask the coach about this position…"><button id="ask">Ask</button></div><div id="ans"></div>` : '';
-  coach.innerHTML = head + (ex && ex.note ? `<p class="small muted">${esc(ex.note)}</p>` : '') + body + tools + chat;
+  coach.innerHTML = head + (ex && ex.note ? `<p class="small muted">${esc(ex.note)}</p>` : '') + body + slip + tools + chat;
   el('t-better').onclick = () => playLine(m.fenBefore, m.bestLine, 'good');
   el('t-mine').onclick = () => playLine(m.fenBefore, [m.san, ...(m.refutationLine || [])], 'bad');
   el('t-try').onclick = () => startRetry(m);
