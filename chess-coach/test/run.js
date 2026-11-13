@@ -69,3 +69,4 @@ test('puzzle checking with the real engine: correct, alternative and wrong answe
   } finally { pool.close(); }
 });
 require('./loose.js');
+require('./control.js');
