@@ -20,10 +20,10 @@ const html = `<title>Chess Coach Drills</title>
 <style>
 ${rd('drill/drill.css')}
 </style>
-<div class="wrap">
-  <header class="top"><div class="brand">Chess Coach <small>drills</small></div>
-    <div class="row"><button id="pset" class="ghost small" title="Switch piece style"></button><nav><button data-tab="drill" class="on">Drill</button><button data-tab="weak">Weak spots</button><button data-tab="progress">Progress</button></nav></div></header>
-  <main id="view"></main>
+<div class="app">
+  <header class="edge top" id="top"></header>
+  <main class="stage" id="view"></main>
+  <footer class="edge bottom" id="bottom"></footer>
 </div>
 ${pieces}<script type="application/json" id="data">${data}</script>
 <script type="module">
